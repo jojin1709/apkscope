@@ -21,8 +21,10 @@ type App={
 };
 
 const suggestions=['WhatsApp','Instagram','Telegram','Shop Apotheke','PayPal','Netflix'];
-const SOURCE_LIST=['APKMirror','Google Play','Aptoide'];
+const SOURCE_LIST=['APKMirror','Google Play','Aptoide','TapTap'];
 type Sort='relevance'|'version'|'name';
+type Version={version:string;size:number;md5:string;date:string;src:string;download:string};
+const PKG_RE=/^[a-zA-Z]\w*(\.\w+)+$/;
 
 function makeFallback(q:string):App[]{
   const x=q.trim();
@@ -48,8 +50,10 @@ export default function Home(){
   const [results,setResults]=useState<App[]>([]);
   const [selected,setSelected]=useState<App|null>(null);
   const [loading,setLoading]=useState(false);
-  const [checked,setChecked]=useState<Record<string,boolean>>({APKMirror:true,'Google Play':true,Aptoide:true});
+  const [checked,setChecked]=useState<Record<string,boolean>>({APKMirror:true,'Google Play':true,Aptoide:true,TapTap:true});
   const [sort,setSort]=useState<Sort>('relevance');
+  const [versions,setVersions]=useState<Version[]>([]);
+  const [verLoading,setVerLoading]=useState(false);
 
   async function runSearch(value:string){
     if(!value)return;
@@ -83,6 +87,19 @@ export default function Home(){
     if(p){setQ(p);runSearch(p)}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
+
+  useEffect(()=>{
+    const s=selected;
+    setVersions([]);
+    if(!s||!PKG_RE.test(s.packageName)){setVerLoading(false);return}
+    let cancel=false;
+    setVerLoading(true);
+    fetch(`/api/versions?pkg=${encodeURIComponent(s.packageName)}`)
+      .then(r=>r.json())
+      .then(d=>{if(!cancel){setVersions(Array.isArray(d.versions)?d.versions:[]);setVerLoading(false)}})
+      .catch(()=>{if(!cancel)setVerLoading(false)});
+    return()=>{cancel=true};
+  },[selected]);
 
   const counts=useMemo(()=>{
     const c:Record<string,number>={};
@@ -131,7 +148,7 @@ export default function Home(){
       <aside className="panel filters">
         <div className="filtertitle">Sources⌄</div>
         <div className="check">
-          <input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;setChecked({APKMirror:v,'Google Play':v,Aptoide:v})}}/>
+          <input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;setChecked({APKMirror:v,'Google Play':v,Aptoide:v,TapTap:v})}}/>
           All Sources <span style={{marginLeft:'auto'}}>{results.length}</span>
         </div>
         {SOURCE_LIST.map(s=><div className="check" key={s}>
@@ -171,7 +188,7 @@ export default function Home(){
         </div>)}
         {loading&&<div className="empty">Searching sources…</div>}
         {!loading&&!shown.length&&<div className="empty">{results.length?'No results match the selected filters.':'Search for an app to see sources, versions and package names.'}</div>}
-        <div className="notice">APKScope stores no files itself. “↓ Download” links point straight at the mirror file (Aptoide CDN); other buttons open the original source page. Verify the package name, signature and checksum before installing anything.</div>
+        <div className="notice">Every “↓ Download” button streams the APK through APKScope’s own resolver — the file downloads straight to your device and no other site opens. “Open” buttons visit the original listing. Always verify the package name, signature and checksum before installing.</div>
       </section>
 
       <section className="panel detail">
@@ -190,7 +207,7 @@ export default function Home(){
               </div>
             </div>
             <div className="detailaction" style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-              {selected.download&&<a className="dlbtn" href={selected.download} target="_blank" rel="noreferrer">↓ Download APK{selected.size?` (${fmtSize(selected.size)})`:''}</a>}
+              {selected.download&&<a className="dlbtn" href={selected.download}>↓ Download APK{selected.size?` (${fmtSize(selected.size)})`:''}</a>}
               {selected.sourcePage&&<a className="primary" href={selected.sourcePage} target="_blank" rel="noreferrer">Open on {selected.source} ↗</a>}
               {selected.playUrl&&selected.playUrl!==selected.sourcePage&&<a className="chip" style={{padding:'12px 18px'}} href={selected.playUrl} target="_blank" rel="noreferrer">▶ Play Store</a>}
             </div>
@@ -201,32 +218,40 @@ export default function Home(){
           <div style={{display:'flex',alignItems:'center'}}>
             <div>
               <h3 style={{margin:'0 0 4px'}}>All Versions</h3>
-              <div style={{fontSize:12,color:'#64748b'}}>Latest available build from the selected source, with size and checksum.</div>
+              <div style={{fontSize:12,color:'#64748b'}}>Every available build with size, checksum and release date.</div>
             </div>
           </div>
 
           <div className="version">
             <div className="versionhead">
-              <strong>{selected.version==='—'?'Latest':selected.version}</strong>
-              <span className="latest">★ Latest</span>
+              <strong>{versions[0]?.version||(selected.version==='—'?'Latest':selected.version)}</strong>
+              <span className="latest">{verLoading?'Loading versions…':versions.length>1?`★ ${versions.length} versions`:versions.length===1?'★ 1 version':'★ Latest'}</span>
               <span className="source">{selected.store||selected.source}</span>
             </div>
             <div className="variant head">
-              <span>Version</span><span>Size</span><span className="md5">MD5</span><span className="android">Android</span><span className="type">Source</span><span>Download</span>
+              <span>Version</span><span>Size</span><span className="md5">MD5</span><span className="android">Date</span><span className="type">Source</span><span>Download</span>
             </div>
-            <div className="variant">
+            {!verLoading&&versions.map((v,i)=><div className="variant" key={`${v.version}-${i}`}>
+              <span>{v.version}</span>
+              <span>{fmtSize(v.size)||'—'}</span>
+              <span className="md5" title={v.md5}>{v.md5?`${v.md5.slice(0,12)}…`:'—'}</span>
+              <span className="android">{v.date?v.date.slice(0,10):'—'}</span>
+              <span className="type">{v.src}</span>
+              <a className="download dl" href={v.download}>↓ Download</a>
+            </div>)}
+            {!verLoading&&!versions.length&&<div className="variant">
               <span>{selected.version==='—'?'—':selected.version}</span>
               <span>{fmtSize(selected.size)||'—'}</span>
               <span className="md5" title={selected.md5||''}>{selected.md5?`${selected.md5.slice(0,12)}…`:'—'}</span>
-              <span className="android">Any</span>
+              <span className="android">—</span>
               <span className="type">{selected.source}</span>
               {selected.download
-                ? <a className="download dl" href={selected.download} target="_blank" rel="noreferrer">↓ Download</a>
+                ? <a className="download dl" href={selected.download}>↓ Download</a>
                 : <a className="download" href={selected.sourcePage} target="_blank" rel="noreferrer">Open ↗</a>}
-            </div>
+            </div>}
           </div>
 
-          {!selected.download&&<div className="empty" style={{padding:'26px 18px'}}>No direct file link for this app — open the source page to choose a release.</div>}
+          {!selected.download&&!versions.length&&<div className="empty" style={{padding:'26px 18px'}}>No direct file link for this app — open the source page to choose a release.</div>}
 
           <div className="version">
             <div className="versionhead"><strong>Browse releases</strong><span className="source">External source ↗</span></div>
