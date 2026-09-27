@@ -1,6 +1,6 @@
 import {fetchText,PKG_RE,through,cached} from './core';
 import {aptoideByPackage,aptoideByName,aptoideVersions} from './aptoide';
-import {apkcomboResolve} from './apkcombo';
+import {apkcomboResolve,apkcomboVersions,apkcomboR2} from './apkcombo';
 import type {App,AppDetail,Version} from './types';
 
 async function fdroidVersions(pkg:string):Promise<Version[]>{
@@ -30,15 +30,35 @@ async function fdroidVersions(pkg:string):Promise<Version[]>{
 
 export async function getVersions(pkg:string,name?:string):Promise<Version[]>{
   if(!PKG_RE.test(pkg))return[];
-  const [apt,fd]=await Promise.all([aptoideVersions(pkg,name),fdroidVersions(pkg)]);
+  const [apt,fd,apkcRaw]=await Promise.all([
+    aptoideVersions(pkg,name),
+    fdroidVersions(pkg),
+    apkcomboVersions(pkg,name||'')
+  ]);
+  await Promise.all(apkcRaw.slice(0,3).map(async v=>{
+    if(v.page){
+      const r2=await apkcomboR2(v.page);
+      if(r2)v.download=r2;
+    }
+  }));
+  const apkc:Version[]=apkcRaw.map(v=>({
+    version:v.version,size:0,md5:'',date:v.date,src:'APKCombo',page:v.page,download:v.download
+  }));
   const seen=new Set<string>();
   const versions:Version[]=[];
-  for(const v of [...apt,...fd]){
+  for(const v of [...apt,...fd,...apkc]){
     if(!v.version||seen.has(v.version))continue;
     seen.add(v.version);
-    v.download=through(v.download);
+    if(v.download)v.download=through(v.download);
     versions.push(v);
   }
+  versions.sort((a,b)=>{
+    const da=a.date||'',db=b.date||'';
+    if(da&&db&&da!==db)return db<da?-1:1;
+    if(da&&!db)return -1;
+    if(!da&&db)return 1;
+    return 0;
+  });
   return versions;
 }
 

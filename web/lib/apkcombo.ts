@@ -1,4 +1,4 @@
-import {fetchText,decode,cached} from './core';
+import {fetchText,decode,cached,PKG_RE} from './core';
 import type {BrowseItem} from './types';
 
 const BASE='https://apkcombo.com';
@@ -112,6 +112,63 @@ async function r2FromDownloadPage(pagePath:string):Promise<string|''>{
   const m=html.match(/href="(\/r2\?u=[^"]+)"/);
   if(!m)return '';
   return BASE+m[1];
+}
+
+export async function apkcomboR2(pageUrl:string):Promise<string|''>{
+  const html=await fetchText(pageUrl,{extra:UA_HDR});
+  if(!html)return '';
+  const m=html.match(/href="(\/r2\?u=[^"]+)"/);
+  return m?BASE+m[1]:'';
+}
+
+export type ApkcVersion={version:string;date:string;page:string;download?:string};
+
+const MONTHS:Record<string,string>={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+
+export async function apkcomboVersions(pkg:string,name=''):Promise<ApkcVersion[]>{
+  const key=`apkc:vers:${pkg||name}`;
+  return cached(key,900000,async()=>{
+    let appUrl='';
+    if(pkg&&PKG_RE.test(pkg)){
+      const html=await fetchText(`${BASE}/en/${encodeURIComponent(pkg)}`,{extra:UA_HDR});
+      if(html){
+        const c=(html.match(/<link rel="canonical" href="([^"]+)"/)||[])[1]||'';
+        if(c&&c.includes(`/${pkg}/`))appUrl=c;
+      }
+    }
+    if(!appUrl){
+      let list=await apkcomboSearch(pkg||name,10);
+      let page=list.find(it=>pkg&&it.packageName===pkg);
+      if(!page){
+        list=await apkcomboSearch(name||pkg,10);
+        page=list.find(it=>pkg&&it.packageName===pkg)||list.find(it=>norm(it.name)===norm(name));
+      }
+      if(!page)return [];
+      appUrl=page.sourcePage;
+    }
+    const html=await fetchText(`${appUrl.replace(/\/+$/,'')}/versions`,{extra:UA_HDR});
+    if(!html)return [];
+    const out:ApkcVersion[]=[];
+    const re=/<a class="ver-item" href="([^"]+)"[\s\S]{0,1400}?<\/a>/g;
+    let m:RegExpExecArray|null;
+    while((m=re.exec(html))&&out.length<10){
+      const href=m[1];
+      const seg=href.split('/').filter(Boolean).pop()||'';
+      const stripped=seg.replace(/-apk$/i,'');
+      const di=stripped.search(/\d/);
+      if(di<0)continue;
+      const ver=stripped.slice(di);
+      if(!ver||out.some(v=>v.version===ver))continue;
+      let date='';
+      const dm=m[0].match(/<div class="description">([^<]+)<\/div>/);
+      if(dm){
+        const mm=dm[1].match(/([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})/);
+        if(mm&&MONTHS[mm[1]])date=`${mm[3]}-${MONTHS[mm[1]]}-${mm[2].padStart(2,'0')}`;
+      }
+      out.push({version:ver,date,page:BASE+href});
+    }
+    return out;
+  });
 }
 
 export async function apkcomboResolve(name:string,pkg:string):Promise<ApkComboResolved|null>{

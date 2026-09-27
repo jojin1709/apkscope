@@ -24,7 +24,8 @@ export type Version={
   md5:string;
   date:string;
   src:string;
-  download:string;
+  download?:string;
+  page?:string;
 };
 
 export type AppDetail={

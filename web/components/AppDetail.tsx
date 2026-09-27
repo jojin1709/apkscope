@@ -204,9 +204,11 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
           <span className="md5" title={v.md5}>{v.md5?<a href={vtLink(v.md5)} target="_blank" rel="noreferrer">{v.md5.slice(0,12)}…</a>:'—'}</span>
           <span className="android">{v.date?v.date.slice(0,10):'—'}</span>
           <span className="type">{v.src}</span>
-          <button className="download dl" disabled={!!prog} onClick={()=>start(v.download,v.version)}>
-            {busy?`${pct}%`:'↓ '+t('colDownload')}
-          </button>
+          {v.download
+            ? <button className="download dl" disabled={!!prog} onClick={()=>start(v.download!,v.version)}>
+                {busy?`${pct}%`:'↓ '+t('colDownload')}
+              </button>
+            : <a className="download" href={v.page||app.sourcePage} target="_blank" rel="noreferrer">↗ {t('open')}</a>}
         </div>;
       })}
       {!verLoading&&!versions.length&&<div className="variant">

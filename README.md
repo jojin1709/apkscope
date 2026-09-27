@@ -110,8 +110,10 @@ browser ──► /api/search?q=…            (edge route · 10-min cache · 15
   a default is built in).
 - **Best effort by design.** A blocked or rate-limited fetch degrades to a working provider
   link, never to fabricated results.
-- **Versions** come from Aptoide's version history plus F-Droid's package API, merged and
-  sorted newest-first with size, MD5, date and source per row.
+- **Versions** come from Aptoide's version history, F-Droid's package API and APKCombo's
+  version list — merged, deduped and sorted newest-first with size, MD5, date and source
+  per row; APKCombo rows stream through the worker when a direct file exists, otherwise
+  they link out to the release page.
 - **The Worker powers downloads.** Search works without it; direct downloads stream through
   `worker/` (see below).
 
@@ -217,7 +219,7 @@ npm run deploy
 | **Search results** | Parsed from the public search pages/JSON of APKMirror, Google Play, Aptoide, APKCombo and TapTap; best-effort, no API keys |
 | **Package names & icons** | Taken from Google Play / TapTap / Aptoide results; APKMirror rows contribute versions, developers and release links |
 | **APKMirror availability** | Frequently rate-limited (429) or Cloudflare-challenged — APKScope then falls back to Play/Aptoide results or the provider search page |
-| **Version history & checksums** | From Aptoide's version API + F-Droid's package API: version, size, MD5, date and source per row — not scraped from challenge-protected detail pages |
+| **Version history & checksums** | From Aptoide's version API, F-Droid's package API and APKCombo's version list: version, size, MD5, date and source per row — not scraped from challenge-protected detail pages |
 | **Downloads** | Streamed on demand through the Cloudflare Worker from the original host's URL (allowlisted hosts, `.apk` only); APKScope stores, caches and re-hosts no files |
 | **Accounts & data** | None — no auth, no user database, no uploads, no cookies; theme/language/recent apps stay in your `localStorage` |
 | **Analytics** | Vercel Analytics only (cookie-free page views) in production — no tracking profile, no cross-site cookies |
