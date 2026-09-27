@@ -7,6 +7,13 @@
 5. Build command: `npm run build`.
 6. Deploy.
 
-No environment variables are required for the demo.
+No environment variables are required — defaults are built in. Optional overrides:
 
-The frontend's `/api/search` route performs best-effort provider discovery. For production, you can set the Worker URL and move resolver traffic to Cloudflare if desired.
+| Variable | Default | Purpose |
+|---|---|---|
+| `WORKER_URL` | `https://apkscope-resolver.apkscope.workers.dev` | Where download/proxy URLs point |
+| `APTOIDE_API_KEY` | built-in public key | Aptoide API key override |
+
+The frontend's `/api/search` route performs best-effort provider discovery on the edge.
+Direct downloads stream through the Cloudflare Worker (`worker/`) — deploy it once with
+`npm run deploy` in `worker/` and, if you host it elsewhere, set `WORKER_URL` accordingly.
