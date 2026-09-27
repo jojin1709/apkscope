@@ -13,7 +13,26 @@ type Item={
   icon:string;
   sourcePage:string;
   playUrl?:string;
+  download?:string;
+  size?:number;
+  md5?:string;
+  rank?:string;
+  store?:string;
+  signer?:string;
   variants:{label:string;architecture:string;android:string;dpi:string;format:string;download:string}[];
+};
+
+type Aptoide={
+  name:string;
+  packageName:string;
+  version:string;
+  size:number;
+  icon:string;
+  download:string;
+  md5:string;
+  rank:string;
+  store:string;
+  signer:string;
 };
 
 function decode(s:string):string{
@@ -146,17 +165,63 @@ function searchPlay(q:string){
   });
 }
 
-function buildResults(apk:{name:string;sourcePage:string;version:string;developer:string;icon:string}[],play:{name:string;packageName:string;playUrl:string;icon:string}[]):Item[]{
+function searchAptoide(q:string){
+  const url=`https://ws75.aptoide.com/api/7/apps/search?query=${encodeURIComponent(q)}&limit=12`;
+  return fetchText(url).then(txt=>{
+    const items:Aptoide[]=[];
+    if(!txt)return items;
+    try{
+      const data=JSON.parse(txt);
+      const list=data?.datalist?.list;
+      if(!Array.isArray(list))return items;
+      const seen=new Set<string>();
+      for(const it of list){
+        const pkg=it?.package;
+        const download=it?.file?.path;
+        if(typeof pkg!=='string'||typeof download!=='string'||seen.has(pkg))continue;
+        seen.add(pkg);
+        items.push({
+          name:typeof it.name==='string'?it.name:pkg,
+          packageName:pkg,
+          version:typeof it.file?.vername==='string'?it.file.vername:'',
+          size:Number(it.file?.filesize)||Number(it.size)||0,
+          icon:typeof it.icon==='string'?it.icon:'',
+          download,
+          md5:typeof it.file?.md5sum==='string'?it.file.md5sum:'',
+          rank:typeof it.file?.malware?.rank==='string'?it.file.malware.rank:'',
+          store:typeof it.store?.name==='string'?it.store.name:'',
+          signer:typeof it.file?.signature?.owner==='string'?it.file.signature.owner:''
+        });
+        if(items.length>=12)break;
+      }
+    }catch{}
+    return items;
+  });
+}
+
+function buildResults(apk:{name:string;sourcePage:string;version:string;developer:string;icon:string}[],play:{name:string;packageName:string;playUrl:string;icon:string}[],apt:Aptoide[]):Item[]{
   const norm=(s:string)=>s.toLowerCase().replace(/[^a-z0-9]/g,'');
   const base=(s:string)=>norm(s.replace(/\s+\d+(\.\d+)+$/,''));
   const playByTitle=new Map(play.map(p=>[norm(p.name),p]));
   const playByBase=new Map(play.map(p=>[base(p.name),p]));
+  const aptByPkg=new Map(apt.map(a=>[a.packageName,a]));
   const used=new Set<string>();
   const results:Item[]=[];
+  const enrich=(target:Item,pkg?:string)=>{
+    const a=pkg?aptByPkg.get(pkg):undefined;
+    if(!a)return;
+    if(!target.version||target.version==='—'||target.version==='See source')target.version=a.version||target.version;
+    if(a.download)target.download=a.download;
+    if(a.size)target.size=a.size;
+    if(a.md5)target.md5=a.md5;
+    if(a.rank)target.rank=a.rank;
+    if(a.store)target.store=a.store;
+    if(a.signer)target.signer=a.signer;
+  };
   for(const a of apk){
     const p=playByTitle.get(norm(a.name))||playByBase.get(base(a.name));
     if(p)used.add(p.packageName);
-    results.push({
+    const item:Item={
       name:a.name,
       packageName:p?p.packageName:(a.developer?`by ${a.developer}`:'Package name on source page'),
       version:a.version||'See source',
@@ -166,12 +231,14 @@ function buildResults(apk:{name:string;sourcePage:string;version:string;develope
       sourcePage:a.sourcePage,
       playUrl:p?p.playUrl:undefined,
       variants:[]
-    });
+    };
+    enrich(item,p?.packageName);
+    results.push(item);
   }
   for(const p of play){
     if(used.has(p.packageName))continue;
     if(results.length>=12)break;
-    results.push({
+    const item:Item={
       name:p.name,
       packageName:p.packageName,
       version:'—',
@@ -181,6 +248,29 @@ function buildResults(apk:{name:string;sourcePage:string;version:string;develope
       sourcePage:p.playUrl,
       playUrl:p.playUrl,
       variants:[]
+    };
+    enrich(item,p.packageName);
+    results.push(item);
+  }
+  for(const a of apt){
+    if(used.has(a.packageName))continue;
+    if(results.length>=14)break;
+    used.add(a.packageName);
+    results.push({
+      name:a.name,
+      packageName:a.packageName,
+      version:a.version||'—',
+      source:'Aptoide',
+      category:['Android'],
+      icon:a.icon,
+      sourcePage:`https://en.aptoide.com/search?query=${encodeURIComponent(a.packageName)}`,
+      download:a.download,
+      size:a.size,
+      md5:a.md5,
+      rank:a.rank,
+      store:a.store,
+      signer:a.signer,
+      variants:[]
     });
   }
   return results;
@@ -189,8 +279,8 @@ function buildResults(apk:{name:string;sourcePage:string;version:string;develope
 export async function GET(req:NextRequest){
   const q=req.nextUrl.searchParams.get('q')?.trim();
   if(!q)return NextResponse.json({results:[]});
-  const [apk,play]=await Promise.all([searchApkmirror(q),searchPlay(q)]);
-  const results=buildResults(apk,play);
+  const [apk,play,apt]=await Promise.all([searchApkmirror(q),searchPlay(q),searchAptoide(q)]);
+  const results=buildResults(apk,play,apt);
   if(!results.length){
     results.push({
       name:q,
