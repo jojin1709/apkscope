@@ -24,6 +24,10 @@ const ALLOWED = [
   "uptodown.com",
   "github.com",
   "objects.githubusercontent.com",
+  "apkcombo.com",
+  "apkcombo.org",
+  "r2.cloudflarestorage.com",
+  "pool.apk.aptoide.com",
 ];
 
 function hostAllowed(host: string): boolean {
@@ -46,12 +50,55 @@ function parseTarget(raw: string | null): URL | null {
   }
 }
 
+function isApkTarget(url: URL): boolean {
+  if (/\.apk(\?|$)/i.test(url.pathname + url.search)) return true;
+  for (const value of url.searchParams.values()) {
+    try {
+      if (/\.apk(\?|$)/i.test(decodeURIComponent(value))) return true;
+    } catch {
+      if (/\.apk(\?|$)/i.test(value)) return true;
+    }
+  }
+  return false;
+}
+
+const EXPOSE = "content-length, content-disposition, content-range";
+
+function fileNameFor(url: URL): string {
+  const direct = url.pathname.split("/").pop() || "";
+  if (/\.apk$/i.test(direct)) {
+    const name = decodeURIComponent(direct).replace(/[^\w.\- ]/g, "_");
+    if (name.length > 4) return name;
+  }
+  for (const value of url.searchParams.values()) {
+    let decoded = value;
+    try {
+      decoded = decodeURIComponent(value);
+    } catch {}
+    if (!/\.apk(\?|$)/i.test(decoded)) continue;
+    try {
+      const inner = new URL(decoded);
+      const segs = inner.pathname.split("/").filter(Boolean).map(s=>decodeURIComponent(s));
+      if (segs.length >= 3) {
+        const last = segs[segs.length - 1];
+        const pkg = segs[segs.length - 3];
+        const ver = segs[segs.length - 2];
+        if (/^[a-zA-Z0-9._]+$/.test(pkg) && /^[\w.\-]+$/.test(ver)) {
+          return `${pkg}-${ver}.apk`.replace(/[^\w.\- ]/g, "_");
+        }
+      }
+      const lastSeg = segs[segs.length - 1] || "";
+      if (lastSeg) return lastSeg.replace(/[^\w.\- ]/g, "_");
+    } catch {}
+  }
+  return "app.apk";
+}
+
 function fileHeaders(url: URL): Record<string, string> {
-  const base = url.pathname.split("/").pop() || "app.apk";
-  let name = decodeURIComponent(base).replace(/[^\w.\- ]/g, "_");
-  if (!/\.apk$/i.test(name)) name = name.split(".")[0] + ".apk";
+  const name = fileNameFor(url);
   return {
     ...cors,
+    "access-control-expose-headers": EXPOSE,
     "content-type": "application/vnd.android.package-archive",
     "content-disposition": `attachment; filename="${name}"`,
     "cache-control": "public, max-age=86400",
@@ -70,6 +117,7 @@ async function proxyFetch(u: URL): Promise<Response> {
     redirect: "follow",
   });
   const headers = new Headers(cors);
+  headers.set("access-control-expose-headers", EXPOSE);
   const ct = r.headers.get("content-type");
   if (ct) headers.set("content-type", ct);
   const cl = r.headers.get("content-length");
@@ -108,7 +156,7 @@ export default {
     if (u.pathname === "/download") {
       const target = parseTarget(u.searchParams.get("url"));
       if (!target) return json({ error: "url must be an allowed https host" }, 400);
-      if (!/\.apk(\?|$)/i.test(target.pathname + target.search)) {
+      if (!isApkTarget(target)) {
         return json({ error: "only .apk files can be downloaded" }, 400);
       }
       try {
