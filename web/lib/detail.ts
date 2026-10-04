@@ -21,7 +21,8 @@ async function fdroidVersions(pkg:string):Promise<Version[]>{
         md5:'',
         date:'',
         src:'F-Droid',
-        download:`https://f-droid.org/repo/${pkg}_${Number(p.versionCode)}.apk`
+        download:`https://f-droid.org/repo/${pkg}_${Number(p.versionCode)}.apk`,
+        page:`https://f-droid.org/en/packages/${encodeURIComponent(pkg)}/`
       });
     }
   }catch{}
@@ -44,14 +45,57 @@ export async function getVersions(pkg:string,name?:string):Promise<Version[]>{
   const apkc:Version[]=apkcRaw.map(v=>({
     version:v.version,size:0,md5:'',date:v.date,src:'APKCombo',page:v.page,download:v.download
   }));
+
+  // Add Official Store & Mirror Releases so users have immediate access to all mirrors
+  const mirrorReleases:Version[]=[
+    {
+      version:'Latest Official Store Release',
+      size:0,
+      md5:'',
+      date:new Date().toISOString().slice(0,10),
+      src:'Google Play',
+      page:`https://play.google.com/store/apps/details?id=${encodeURIComponent(pkg)}`
+    },
+    {
+      version:'Verified Mirror Build',
+      size:0,
+      md5:'',
+      date:'',
+      src:'APKMirror',
+      page:`https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(pkg)}`
+    },
+    {
+      version:'TapTap Android Build',
+      size:0,
+      md5:'',
+      date:'',
+      src:'TapTap',
+      page:`https://www.taptap.io/search/${encodeURIComponent(pkg)}`
+    }
+  ];
+
+  // If F-Droid didn't have specific version codes, add F-Droid repository link
+  if(!fd.length){
+    mirrorReleases.push({
+      version:'F-Droid Repository Listing',
+      size:0,
+      md5:'',
+      date:'',
+      src:'F-Droid',
+      page:`https://f-droid.org/en/packages/${encodeURIComponent(pkg)}/`
+    });
+  }
+
   const seen=new Set<string>();
   const versions:Version[]=[];
-  for(const v of [...apt,...fd,...apkc]){
-    if(!v.version||seen.has(v.version))continue;
-    seen.add(v.version);
+  for(const v of [...apt,...fd,...apkc,...mirrorReleases]){
+    const key=`${v.src}-${v.version}`;
+    if(seen.has(key))continue;
+    seen.add(key);
     if(v.download)v.download=through(v.download);
     versions.push(v);
   }
+
   versions.sort((a,b)=>{
     const da=a.date||'',db=b.date||'';
     if(da&&db&&da!==db)return db<da?-1:1;

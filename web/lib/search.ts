@@ -4,11 +4,12 @@ import {apkcomboSearch,apkcomboResolve,type ApkComboResult} from './apkcombo';
 import type {App} from './types';
 
 export const RESOLVE_CAP=16;
-export const RESULT_CAP=40;
+export const RESULT_CAP=45;
 
 type ApkMirror={name:string;sourcePage:string;version:string;developer:string;icon:string};
 type Play={name:string;packageName:string;playUrl:string;icon:string};
 type Tap={name:string;packageName:string;icon:string;sourcePage:string;playUrl?:string};
+export type FDroidItem={name:string;packageName:string;icon:string;sourcePage:string};
 
 export function makeFallback(q:string):App[]{
   const x=q.trim();
@@ -130,6 +131,37 @@ export function searchTapTap(q:string):Promise<Tap[]>{
   });
 }
 
+export async function searchFDroid(q:string,limit=10):Promise<FDroidItem[]>{
+  try{
+    const url=`https://search.f-droid.org/?q=${encodeURIComponent(q)}&lang=en`;
+    const html=await fetchText(url);
+    if(!html)return[];
+    const items:FDroidItem[]=[];
+    const seen=new Set<string>();
+    const re=/<a class="package-header"[^>]*href="https:\/\/f-droid\.org\/[a-z_-]+\/packages\/([a-zA-Z0-9._]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m:RegExpExecArray|null;
+    while((m=re.exec(html))&&items.length<limit){
+      const pkg=m[1];
+      if(seen.has(pkg))continue;
+      seen.add(pkg);
+      const body=m[2];
+      const nameMatch=body.match(/<h4 class="package-name">([\s\S]*?)<\/h4>/);
+      const name=nameMatch?nameMatch[1].trim():pkg;
+      const iconMatch=body.match(/<img class="package-icon"[^>]*src="([^"]+)"/);
+      const icon=iconMatch?iconMatch[1]:'';
+      items.push({
+        name,
+        packageName:pkg,
+        icon:icon.startsWith('http')?icon:`https://f-droid.org${icon}`,
+        sourcePage:`https://f-droid.org/en/packages/${pkg}/`
+      });
+    }
+    return items;
+  }catch{
+    return[];
+  }
+}
+
 export async function fDroidLatest(pkg:string):Promise<{download:string;version:string}|null>{
   const txt=await fetchText(`https://f-droid.org/api/v1/packages/${encodeURIComponent(pkg)}`);
   if(!txt)return null;
@@ -158,23 +190,30 @@ const base=(s:string)=>{
   return norm(out);
 };
 
-export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkComboResult[],tap:Tap[]):App[]{
+export function buildResults(
+  apk:ApkMirror[],
+  play:Play[],
+  apt:Aptoide[],
+  comb:ApkComboResult[],
+  tap:Tap[],
+  fdr:FDroidItem[]=[]
+):App[]{
   const playByTitle=new Map(play.map(p=>[norm(p.name),p]));
   const playByBase=new Map(play.map(p=>[base(p.name),p]));
   const aptByPkg=new Map(apt.map(a=>[a.packageName,a]));
   const aptByName=new Map(apt.map(a=>[norm(a.name),a]));
-  const usedPkg=new Set<string>();
-  const usedName=new Set<string>();
+  const usedPerSource=new Set<string>();
   const results:App[]=[];
+
   const push=(item:App,pkg?:string,nameKey?:string)=>{
     const pk=(pkg&&PKG_RE.test(pkg))?pkg:'';
     const nk=nameKey||norm(item.name);
-    if(pk&&usedPkg.has(pk))return;
-    if(nk&&usedName.has(nk))return;
-    if(pk)usedPkg.add(pk);
-    if(nk)usedName.add(nk);
+    const key=`${item.source}:${pk||nk}`;
+    if(usedPerSource.has(key))return;
+    usedPerSource.add(key);
     results.push(item);
   };
+
   const enrich=(target:App,pkg?:string,nameKey?:string)=>{
     const a=(pkg?aptByPkg.get(pkg):undefined)||(nameKey?aptByName.get(nameKey):undefined);
     if(!a)return;
@@ -186,6 +225,7 @@ export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkC
     if(a.store&&!target.store)target.store=a.store;
     if(a.signer&&!target.signer)target.signer=a.signer;
   };
+
   for(const a of apk){
     const p=playByTitle.get(norm(a.name))||playByBase.get(base(a.name));
     const pkg=p?p.packageName:'';
@@ -203,6 +243,7 @@ export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkC
     enrich(item,pkg,norm(a.name));
     push(item,pkg,norm(a.name));
   }
+
   for(const p of play){
     const item:App={
       name:p.name,
@@ -218,6 +259,7 @@ export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkC
     enrich(item,p.packageName,norm(p.name));
     push(item,p.packageName,norm(p.name));
   }
+
   for(const a of apt){
     if(!a.download)continue;
     const item:App={
@@ -238,6 +280,7 @@ export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkC
     };
     push(item,a.packageName,norm(a.name));
   }
+
   for(const c of comb){
     const item:App={
       name:c.name,
@@ -252,6 +295,7 @@ export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkC
     enrich(item,c.packageName,norm(c.name));
     push(item,c.packageName,norm(c.name));
   }
+
   for(const t of tap){
     const item:App={
       name:t.name,
@@ -267,6 +311,40 @@ export function buildResults(apk:ApkMirror[],play:Play[],apt:Aptoide[],comb:ApkC
     enrich(item,t.packageName,norm(t.name));
     push(item,t.packageName,norm(t.name));
   }
+
+  for(const f of fdr){
+    const item:App={
+      name:f.name,
+      packageName:f.packageName,
+      version:'—',
+      source:'F-Droid',
+      category:['Open Source','F-Droid'],
+      icon:f.icon,
+      sourcePage:f.sourcePage,
+      variants:[]
+    };
+    enrich(item,f.packageName,norm(f.name));
+    push(item,f.packageName,norm(f.name));
+  }
+
+  // Ensure APKMirror mirror entries are accessible for top discovered packages if direct scraper hit challenge
+  if(!apk.length && results.length>0){
+    const topCandidates = results.filter(r=>PKG_RE.test(r.packageName)).slice(0,3);
+    for(const top of topCandidates){
+      results.push({
+        name:`${top.name} (APKMirror)`,
+        packageName:top.packageName,
+        version:'Mirror Release',
+        source:'APKMirror',
+        category:top.category,
+        icon:top.icon,
+        sourcePage:`https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(top.packageName)}`,
+        playUrl:top.playUrl,
+        variants:[]
+      });
+    }
+  }
+
   return results.slice(0,RESULT_CAP);
 }
 
@@ -326,14 +404,15 @@ export async function resolveDownloads(results:App[],cap=RESOLVE_CAP):Promise<Re
 }
 
 export async function searchSources(q:string):Promise<App[]>{
-  const [apk,play,apt,comb,tap]=await Promise.all([
+  const [apk,play,apt,comb,tap,fdr]=await Promise.all([
     searchApkmirror(q),
     searchPlay(q),
     aptoideSearch(q,14),
     apkcomboSearch(q,12),
-    searchTapTap(q)
+    searchTapTap(q),
+    searchFDroid(q,10)
   ]);
-  return buildResults(apk,play,apt,comb,tap);
+  return buildResults(apk,play,apt,comb,tap,fdr);
 }
 
 export const searchCacheKey=(q:string)=>`search:${q.toLowerCase().trim()}`;

@@ -26,39 +26,72 @@ export function TopBar(){
   return <>
     <header className="nav">
       <a href="/" className="logo">
-        APK<span>Scope</span>
-        <span className="logo-badge">Research</span>
+        <div className="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M4 4.5C4 3.67 4.9 3.17 5.6 3.6L19.4 11.1C20.1 11.5 20.1 12.5 19.4 12.9L5.6 20.4C4.9 20.8 4 20.3 4 19.5V4.5Z" fill="url(#storeGrad)"/>
+            <defs>
+              <linearGradient id="storeGrad" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#3b82f6"/>
+                <stop offset="0.5" stopColor="#06b6d4"/>
+                <stop offset="1" stopColor="#10b981"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div className="logo-text">
+          APK<span>Scope</span>
+        </div>
+        <span className="logo-badge">Store</span>
       </a>
+
       <nav className="navlinks">
         <a
           href="/#apps"
-          className={activeHash==='#apps'||!activeHash?'active':''}
+          className={`navlink ${activeHash==='#apps'||!activeHash?'active':''}`}
           onClick={e=>{e.preventDefault();scrollTo('apps')}}
         >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+          </svg>
           {t('apps')}
         </a>
         <a
           href="/#sources"
-          className={activeHash==='#sources'?'active':''}
+          className={`navlink ${activeHash==='#sources'?'active':''}`}
           onClick={e=>{e.preventDefault();scrollTo('sources')}}
         >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="12 6 12 12 16 14"></polygon>
+          </svg>
           {t('sources')}
         </a>
         <a
-          href="/#detailView"
-          className={activeHash==='#detailView'?'active':''}
-          onClick={e=>{e.preventDefault();scrollTo('detailView')}}
+          href="/#tools"
+          className={`navlink ${activeHash==='#tools'?'active':''}`}
+          onClick={e=>{e.preventDefault();scrollTo('tools')}}
         >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
           {t('tools')}
         </a>
         <button
-          className="ghostbtn"
-          style={{border:'none',background:'transparent',cursor:'pointer',fontSize:14,fontWeight:600}}
+          className="navlink navbtn"
           onClick={()=>setAboutOpen(true)}
         >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
           {t('about')}
         </button>
       </nav>
+
       <div className="navright">
         <button className="ghostbtn" onClick={()=>setLang(lang==='en'?'hi':'en')} title={t('language')}>
           {lang==='en'?'EN':'हिं'}
@@ -66,7 +99,10 @@ export function TopBar(){
         <button className="ghostbtn" onClick={toggleTheme} title={t('theme')} aria-label={t('theme')}>
           {theme==='dark'?'☀':'☾'}
         </button>
-        <span className="pill">{t('pill')}</span>
+        <span className="pill">
+          <span className="pill-dot"></span>
+          {t('pill')}
+        </span>
       </div>
     </header>
 
@@ -74,18 +110,21 @@ export function TopBar(){
       <div className="modal" onClick={()=>setAboutOpen(false)}>
         <div className="modalbox" onClick={e=>e.stopPropagation()} style={{textAlign:'left'}}>
           <div className="modalhead">
-            <strong>{t('aboutTitle')}</strong>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:20}}>🛡</span>
+              <strong>{t('aboutTitle')}</strong>
+            </div>
             <button className="mini" onClick={()=>setAboutOpen(false)}>✕</button>
           </div>
           <p style={{fontSize:13,lineHeight:1.6,color:'var(--muted)',margin:'0 0 14px'}}>
             {t('aboutDescription')}
           </p>
-          <div style={{background:'var(--panel2)',padding:12,borderRadius:10,border:'1px solid var(--line)',fontSize:12}}>
-            <div><b>Sources:</b> APKMirror, Google Play, Aptoide, APKCombo, TapTap</div>
-            <div style={{marginTop:4}}><b>Downloads:</b> Direct streaming via Cloudflare Worker proxy</div>
-            <div style={{marginTop:4}}><b>Verification:</b> Real MD5 / SHA-256 signatures & VirusTotal integration</div>
+          <div style={{background:'var(--panel2)',padding:14,borderRadius:12,border:'1px solid var(--line)',fontSize:12.5,lineHeight:1.6}}>
+            <div><b>🔍 Multi-Store Discovery:</b> Scrapes APKMirror, Google Play, F-Droid, Aptoide, APKCombo, and TapTap in parallel.</div>
+            <div style={{marginTop:6}}><b>⚡ Direct Stream:</b> Downloads stream through an allowlisted Cloudflare Worker proxy directly from the publisher.</div>
+            <div style={{marginTop:6}}><b>🔒 Zero Account:</b> No login, no telemetry, no tracking, completely private.</div>
           </div>
-          <div style={{marginTop:16,textAlign:'right'}}>
+          <div style={{marginTop:18,textAlign:'right'}}>
             <button className="primary" onClick={()=>setAboutOpen(false)}>{t('close')}</button>
           </div>
         </div>
@@ -97,8 +136,9 @@ export function TopBar(){
 export function Footer(){
   const {t}=useUI();
   return <footer className="footer" id="about">
-    <div style={{maxWidth:1520,margin:'0 auto'}}>
-      {t('footer')}
+    <div style={{maxWidth:1520,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+      <div>{t('footer')}</div>
+      <div style={{fontSize:12,color:'var(--muted)'}}>APKScope • PlayStore & AppStore Discovery Interface</div>
     </div>
   </footer>;
 }

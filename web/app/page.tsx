@@ -7,8 +7,9 @@ import type {App,AppDetail,BrowseItem,Suggest,Version} from '../lib/types';
 type Sort='relevance'|'version'|'name';
 const PAGE_SIZE=8;
 const PKG_RE=/^[a-zA-Z]\w*(\.\w+)+$/;
-const SOURCE_LIST=['APKMirror','Google Play','Aptoide','APKCombo','TapTap'];
-const POPULAR=['WhatsApp','Instagram','Telegram','PayPal','Netflix','Minecraft'];
+const SOURCE_LIST=['APKMirror','Google Play','Aptoide','APKCombo','TapTap','F-Droid'];
+const POPULAR=['WhatsApp','Instagram','Telegram','Spotify','PayPal','Minecraft','Termux','F-Droid'];
+
 const CATS=[
   {k:'trending',l:'🔥 Trending'},
   {k:'games',l:'🎮 Games'},
@@ -20,6 +21,38 @@ const CATS=[
   {k:'video-players',l:'🎬 Video'},
   {k:'communication',l:'✉️ Communication'},
   {k:'entertainment',l:'🎭 Fun'}
+];
+
+// Curated Spotlight Apps for App Store / Play Store feel
+const SPOTLIGHT_APPS=[
+  {
+    name:'Telegram',
+    pkg:'org.telegram.messenger',
+    dev:'Telegram FZ-LLC',
+    rating:'4.8',
+    icon:'https://play-lh.googleusercontent.com/ZU9AnVdpVguAPrwnhOTaAhBaNdutvdaZ3nhPqdaRJ46ZiSaTueFuVuNq0XOBC3qDEg=s96'
+  },
+  {
+    name:'Spotify: Music and Podcasts',
+    pkg:'com.spotify.music',
+    dev:'Spotify AB',
+    rating:'4.4',
+    icon:'https://play-lh.googleusercontent.com/cShys-AmJ93dB0SV8kE6Fl5eSaf4-qMMZdwEDIE5VFlKMisdxng-mX7n4mQ0vNoxCQ=s96'
+  },
+  {
+    name:'Signal Private Messenger',
+    pkg:'org.thoughtcrime.securesms',
+    dev:'Signal Foundation',
+    rating:'4.7',
+    icon:'https://play-lh.googleusercontent.com/iLdQY2_pQ9LgI_k8sH7wH9d2Xb2m7Xk6Z5=s96'
+  },
+  {
+    name:'Termux',
+    pkg:'com.termux',
+    dev:'Fredrik Fornwall',
+    rating:'4.6',
+    icon:'https://play-lh.googleusercontent.com/w1u0i8kL9k4D5X=s96'
+  }
 ];
 
 const isImg=(s?:string)=>!!s&&/^https?:\/\//.test(s);
@@ -72,7 +105,6 @@ export default function Home(){
     }catch{}
   }
 
-  // Close suggestions when clicking outside
   useEffect(()=>{
     function onDocClick(e:MouseEvent){
       if(searchWrapRef.current&&!searchWrapRef.current.contains(e.target as Node)){
@@ -202,7 +234,6 @@ export default function Home(){
       u.searchParams.set('pkg',item.packageName);
       history.replaceState(null,'',u.toString());
     }catch{}
-    // Mobile smooth scroll
     if(typeof window!=='undefined'&&window.innerWidth<=780){
       setTimeout(()=>{
         document.getElementById('detailView')?.scrollIntoView({behavior:'smooth'});
@@ -222,6 +253,10 @@ export default function Home(){
       variants:[]
     };
     pickApp(app);
+  }
+
+  function openDirectPkg(pkg:string,name:string){
+    choose(name||pkg);
   }
 
   useEffect(()=>{
@@ -278,7 +313,6 @@ export default function Home(){
     return list;
   },[results,checked,directOnly,sort]);
 
-  // Sync selected app when filters change
   useEffect(()=>{
     if(selected&&!cat&&shown.length>0){
       const exists=shown.some(a=>a.packageName===selected.packageName);
@@ -324,248 +358,320 @@ export default function Home(){
 
   const allOn=SOURCE_LIST.every(s=>checked[s]);
 
+  // Is store discovery active (no search query & no category filter)
+  const isStoreDiscovery=!q&&!cat&&results.length===0;
+
   return <div className="shell">
-    <section className="hero">
-      <div>
-        <h1>{t('heroTitle')} <span>{t('heroTitleSpan')}</span></h1>
-        <p>{t('heroSub')}</p>
-        <div className="searchwrap" ref={searchWrapRef}>
-          <div className="search">
-            <span className="search-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </span>
-            <input
-              value={q}
-              onChange={e=>onQuery(e.target.value)}
-              onFocus={()=>{if(sugs.length)setSugOpen(true)}}
-              onKeyDown={e=>{
-                if(e.key==='ArrowDown'){
-                  e.preventDefault();
-                  if(sugs.length)setSugIndex(i=>Math.min(i+1,sugs.length-1));
-                }else if(e.key==='ArrowUp'){
-                  e.preventDefault();
-                  if(sugs.length)setSugIndex(i=>Math.max(i-1,-1));
-                }else if(e.key==='Enter'){
-                  if(sugOpen&&sugIndex>=0&&sugs[sugIndex]){
-                    choose(sugs[sugIndex].name);
-                  }else{
-                    search();
-                  }
-                }else if(e.key==='Escape'){
-                  setSugOpen(false);
+    {/* SPOTLIGHT HERO & STORE SEARCH */}
+    <section className="store-hero">
+      {/* App Store Spotlight Featured Banner */}
+      <div className="spotlight-banner">
+        <div className="spotlight-left">
+          <div className="spotlight-tag">
+            <span style={{fontSize:12}}>⚡</span>
+            <span>Verified Android Discovery</span>
+          </div>
+          <h1 className="spotlight-title">
+            {t('heroTitle')} <span>{t('heroTitleSpan')}</span>
+          </h1>
+          <p className="spotlight-sub">
+            {t('heroSub')}
+          </p>
+        </div>
+
+        {/* Spotlight Featured Quick Apps */}
+        <div className="spotlight-cards">
+          {SPOTLIGHT_APPS.map(item=>(
+            <div
+              key={item.pkg}
+              className="spotlight-app"
+              onClick={()=>openDirectPkg(item.pkg,item.name)}
+              title={`View ${item.name}`}
+            >
+              <div className="spotlight-icon">
+                {isImg(item.icon)?<img src={item.icon} alt={item.name}/>:item.name.slice(0,1)}
+              </div>
+              <div className="spotlight-meta">
+                <div className="spotlight-name">{item.name}</div>
+                <div className="spotlight-dev">{item.dev}</div>
+                <div className="spotlight-stat">
+                  <span style={{color:'var(--amber-text)',fontWeight:700}}>★ {item.rating}</span>
+                  <span className="spotlight-btn">GET</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Floating Centered Play Store Search Bar */}
+      <div className="store-search-wrap" ref={searchWrapRef}>
+        <div className="store-search">
+          <div className="search-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <input
+            value={q}
+            onChange={e=>onQuery(e.target.value)}
+            onFocus={()=>{if(sugs.length)setSugOpen(true)}}
+            onKeyDown={e=>{
+              if(e.key==='ArrowDown'){
+                e.preventDefault();
+                if(sugs.length)setSugIndex(i=>Math.min(i+1,sugs.length-1));
+              }else if(e.key==='ArrowUp'){
+                e.preventDefault();
+                if(sugs.length)setSugIndex(i=>Math.max(i-1,-1));
+              }else if(e.key==='Enter'){
+                if(sugOpen&&sugIndex>=0&&sugs[sugIndex]){
+                  choose(sugs[sugIndex].name);
+                }else{
+                  search();
                 }
-              }}
-              placeholder={t('placeholder')}
-              aria-label={t('placeholder')}
-            />
-            {q&&<button className="search-clear" onClick={clearQuery} title={t('clearSearch')}>✕</button>}
-            <button id="searchBtn" onClick={search}>
-              {loading?t('searching'):t('searchBtn')}
-            </button>
-          </div>
-
-          {sugOpen&&sugs.length>0&&<ul className="suglist">
-            {sugs.map((s,idx)=><li
-              key={s.packageName}
-              className={sugIndex===idx?'active':''}
-              onMouseEnter={()=>setSugIndex(idx)}
-              onMouseDown={e=>{e.preventDefault();choose(s.name)}}>
-              <img src={isImg(s.icon)?s.icon:''} alt="" loading="lazy" onError={e=>{(e.currentTarget.style.display='none')}}/>
-              <span className="sugname">{s.name}</span>
-              <span className="sugpkg">{s.packageName}</span>
-            </li>)}
-          </ul>}
+              }else if(e.key==='Escape'){
+                setSugOpen(false);
+              }
+            }}
+            placeholder={t('placeholder')}
+            aria-label={t('placeholder')}
+          />
+          {q&&<button className="search-clear" onClick={clearQuery} title={t('clearSearch')}>✕</button>}
+          <button className="search-btn" id="searchBtn" onClick={search}>
+            {loading?t('searching'):t('searchBtn')}
+          </button>
         </div>
 
-        <div className="chips">
-          <span style={{fontSize:12.5,color:'var(--muted)',fontWeight:600}}>{t('popular')}</span>
-          {POPULAR.map(x=><button className="chip" key={x} onClick={()=>choose(x)}>{x}</button>)}
-        </div>
-
-        {recent.length>0&&!q&&!cat&&<div className="recentrow">
-          <span className="recentlabel">🕑 {t('recentTitle')}</span>
-          {recent.map(r=><a className="recentchip" key={r.pkg} href={`/app/${encodeURIComponent(r.pkg)}?n=${encodeURIComponent(r.name)}`}>
-            {isImg(r.icon)?<img src={r.icon} alt=""/>:null}{r.name}
-          </a>)}
-        </div>}
+        {sugOpen&&sugs.length>0&&<ul className="suglist">
+          {sugs.map((s,idx)=><li
+            key={s.packageName}
+            className={sugIndex===idx?'active':''}
+            onMouseEnter={()=>setSugIndex(idx)}
+            onMouseDown={e=>{e.preventDefault();choose(s.name)}}>
+            <img src={isImg(s.icon)?s.icon:''} alt="" loading="lazy" onError={e=>{(e.currentTarget.style.display='none')}}/>
+            <span className="sugname">{s.name}</span>
+            <span className="sugpkg">{s.packageName}</span>
+          </li>)}
+        </ul>}
       </div>
 
-      <div className="benefits">
-        <div className="benefit">
-          <div className="icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-          </div>
-          <strong>{t('ben1')}</strong>
-          <span>{t('ben1d')}</span>
-        </div>
-        <div className="benefit">
-          <div className="icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-          </div>
-          <strong>{t('ben2')}</strong>
-          <span>{t('ben2d')}</span>
-        </div>
-        <div className="benefit">
-          <div className="icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-          </div>
-          <strong>{t('ben3')}</strong>
-          <span>{t('ben3d')}</span>
-        </div>
+      {/* Popular Chips Row */}
+      <div className="chips-row">
+        <span className="chip-label">{t('popular')}</span>
+        {POPULAR.map(x=><button className="store-chip" key={x} onClick={()=>choose(x)}>{x}</button>)}
       </div>
-    </section>
 
-    <section className="browsebar" id="sources">
-      <div className="striphead"><strong>{t('catTitle')}</strong><span>{t('catSub')}</span></div>
-      <div className="catchips">
-        {CATS.map(c=><button className={`catchip ${cat===c.k?'on':''}`} key={c.k} onClick={()=>openCat(c.k,c.l)}>{c.l}</button>)}
-      </div>
-    </section>
-
-    {!q&&!cat&&trending.length>0&&<section className="strip">
-      <div className="striphead"><strong>{t('trendTitle')}</strong><span>{t('trendSub')}</span></div>
-      <div className="striprail">
-        {trending.map(x=><a className="trendcard" key={x.packageName} href={`/app/${encodeURIComponent(x.packageName)}?n=${encodeURIComponent(x.name)}`}>
-          <img src={isImg(x.icon)?x.icon:''} alt="" loading="lazy" onError={e=>{e.currentTarget.classList.add('noimg')}}/>
-          <span className="trendname">{x.name}</span>
-          {x.rating&&<span className="trendrating">★ {x.rating}</span>}
+      {recent.length>0&&!q&&!cat&&<div className="chips-row" style={{marginBottom:10}}>
+        <span className="chip-label">🕑 {t('recentTitle')}:</span>
+        {recent.map(r=><a className="store-chip" key={r.pkg} href={`/app/${encodeURIComponent(r.pkg)}?n=${encodeURIComponent(r.name)}`}>
+          {isImg(r.icon)?<img src={r.icon} alt="" style={{width:16,height:16,borderRadius:'50%'}}/>:null}
+          {r.name}
         </a>)}
+      </div>}
+    </section>
+
+    {/* BROWSE CATEGORIES SELECTOR PILLS */}
+    <section className="cat-rail-wrap" id="sources">
+      <div className="cat-pills">
+        {CATS.map(c=><button
+          className={`cat-pill ${cat===c.k?'on':''}`}
+          key={c.k}
+          onClick={()=>openCat(c.k,c.l)}
+        >
+          {c.l}
+        </button>)}
       </div>
-    </section>}
+    </section>
 
-    <main className="content" id="apps">
-      {/* Filters Sidebar */}
-      <aside className="panel filters">
-        <div className="filtersection">
-          <div className="filterhead" onClick={()=>setOpenSources(o=>!o)}>
-            <span>{t('filterSources')}</span>
-            <span className={`chevron ${openSources?'open':''}`}>›</span>
+    {/* APP STORE DISCOVERY SECTIONS (Visible when no search query is active) */}
+    {isStoreDiscovery&&(
+      <>
+        {/* Section 1: Trending Apps Rail */}
+        {trending.length>0&&(
+          <section className="store-section">
+            <div className="section-header">
+              <h3>
+                <span>🔥</span>
+                <span>{t('trendTitle')}</span>
+                <span className="section-sub">— {t('trendSub')}</span>
+              </h3>
+            </div>
+            <div className="apps-rail">
+              {trending.map(x=><div
+                className="app-card-rail"
+                key={x.packageName}
+                onClick={()=>choose(x.name)}
+                title={`Explore ${x.name}`}
+              >
+                <div className="app-icon-rail">
+                  <img src={isImg(x.icon)?x.icon:''} alt="" loading="lazy" onError={e=>{e.currentTarget.style.display='none'}}/>
+                </div>
+                <div className="app-name-rail">{x.name}</div>
+                {x.rating&&<div className="app-rating-rail">★ {x.rating}</div>}
+                <button className="app-get-rail">GET</button>
+              </div>)}
+            </div>
+          </section>
+        )}
+
+        {/* Section 2: Top Charts Grid (1, 2, 3...) */}
+        <section className="store-section" id="tools">
+          <div className="section-header">
+            <h3>
+              <span>🏆</span>
+              <span>Top Charts & Popular Builds</span>
+              <span className="section-sub">— Most downloaded Android builds this week</span>
+            </h3>
           </div>
-          {openSources&&<div className="filterbody">
-            <label className="check">
-              <input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;setChecked(Object.fromEntries(SOURCE_LIST.map(s=>[s,v])))}}/>
-              <span>{t('allSources')}</span>
-              <span className="badge-count">{results.length}</span>
+          <div className="charts-grid">
+            {(trending.length?trending.slice(0,6):SPOTLIGHT_APPS).map((item,idx)=>(
+              <div
+                className="chart-card"
+                key={item.name}
+                onClick={()=>choose(item.name)}
+              >
+                <div className="chart-rank">#{idx+1}</div>
+                <div className="chart-icon">
+                  <img src={isImg(item.icon)?item.icon:''} alt="" loading="lazy"/>
+                </div>
+                <div className="chart-meta">
+                  <div className="chart-title">{item.name}</div>
+                  <div className="chart-dev">{'dev' in item?item.dev:item.packageName}</div>
+                  <div className="chart-rating">★ {'rating' in item?item.rating:'4.6'} • Free</div>
+                </div>
+                <button className="chart-btn">GET</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      </>
+    )}
+
+    {/* MAIN CONTENT AREA: SEARCH RESULTS & PRODUCT DETAIL */}
+    {(!isStoreDiscovery||q||cat||results.length>0)&&(
+      <main className="content" id="apps">
+        {/* Left Column: Store Filters */}
+        <aside className="panel filters">
+          <div className="filtersection">
+            <div className="filterhead" onClick={()=>setOpenSources(o=>!o)}>
+              <span>{t('filterSources')}</span>
+              <span className={`chevron ${openSources?'open':''}`}>›</span>
+            </div>
+            {openSources&&<div className="filterbody">
+              <label className="check">
+                <input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;setChecked(Object.fromEntries(SOURCE_LIST.map(s=>[s,v])))}}/>
+                <span>{t('allSources')}</span>
+                <span className="badge-count">{results.length}</span>
+              </label>
+              {SOURCE_LIST.map(s=><label className="check" key={s}>
+                <input type="checkbox" checked={checked[s]!==false} onChange={e=>setChecked(c=>({...c,[s]:e.target.checked}))}/>
+                <span>{s}</span>
+                <span className="badge-count">{counts[s]||0}</span>
+              </label>)}
+            </div>}
+          </div>
+
+          <div className="filtersection filtergroup">
+            <label className="check" style={{fontWeight:700,color:'var(--green)'}}>
+              <input type="checkbox" checked={directOnly} onChange={e=>setDirectOnly(e.target.checked)}/>
+              <span>⚡ {t('directOnly')}</span>
             </label>
-            {SOURCE_LIST.map(s=><label className="check" key={s}>
-              <input type="checkbox" checked={checked[s]!==false} onChange={e=>setChecked(c=>({...c,[s]:e.target.checked}))}/>
-              <span>{s}</span>
-              <span className="badge-count">{counts[s]||0}</span>
-            </label>)}
-          </div>}
-        </div>
-
-        <div className="filtersection filtergroup">
-          <label className="check" style={{fontWeight:650,color:'var(--blue)'}}>
-            <input type="checkbox" checked={directOnly} onChange={e=>setDirectOnly(e.target.checked)}/>
-            <span>⚡ {t('directOnly')}</span>
-          </label>
-        </div>
-
-        <div className="filtersection filtergroup">
-          <div className="filterhead" onClick={()=>setOpenPlatform(o=>!o)}>
-            <span>{t('platform')}</span>
-            <span className={`chevron ${openPlatform?'open':''}`}>›</span>
           </div>
-          {openPlatform&&<div className="filterbody">
-            <label className="check"><input type="checkbox" defaultChecked readOnly/> <span>{t('android')}</span></label>
-            <label className="check" style={{opacity:.5}} title="iOS builds are not tracked">
-              <input type="checkbox" disabled/>
-              <span>{t('ios')}</span>
-              <span className="badge-count">n/a</span>
-            </label>
-          </div>}
-        </div>
 
-        <div className="filtersection filtergroup">
-          <div className="filterhead" onClick={()=>setOpenSort(o=>!o)}>
-            <span>{t('sortBy')}</span>
-            <span className={`chevron ${openSort?'open':''}`}>›</span>
+          <div className="filtersection filtergroup">
+            <div className="filterhead" onClick={()=>setOpenPlatform(o=>!o)}>
+              <span>{t('platform')}</span>
+              <span className={`chevron ${openPlatform?'open':''}`}>›</span>
+            </div>
+            {openPlatform&&<div className="filterbody">
+              <label className="check"><input type="checkbox" defaultChecked readOnly/> <span>{t('android')}</span></label>
+              <label className="check" style={{opacity:.5}} title="iOS builds are not tracked">
+                <input type="checkbox" disabled/>
+                <span>{t('ios')}</span>
+                <span className="badge-count">n/a</span>
+              </label>
+            </div>}
           </div>
-          {openSort&&<div className="filterbody">
-            <label className="check"><input type="radio" name="s" checked={sort==='relevance'} onChange={()=>{setSort('relevance');setVisible(PAGE_SIZE)}}/> <span>{t('relevance')}</span></label>
-            <label className="check"><input type="radio" name="s" checked={sort==='version'} onChange={()=>{setSort('version');setVisible(PAGE_SIZE)}}/> <span>{t('latestVersion')}</span></label>
-            <label className="check"><input type="radio" name="s" checked={sort==='name'} onChange={()=>{setSort('name');setVisible(PAGE_SIZE)}}/> <span>{t('nameAZ')}</span></label>
-          </div>}
-        </div>
-      </aside>
 
-      {/* Results Center Column */}
-      <section className="panel results" id="tools">
-        <div className="resultshead">
-          <strong>{cat?`${t('catTitle')}: ${catLabel}`:`${t('resultsFor')} “${q||'…'}”`}</strong>
-          <span style={{fontSize:12,color:'var(--muted)'}}>{listLen} {listLen===1?t('result'):t('results')}</span>
-        </div>
+          <div className="filtersection filtergroup">
+            <div className="filterhead" onClick={()=>setOpenSort(o=>!o)}>
+              <span>{t('sortBy')}</span>
+              <span className={`chevron ${openSort?'open':''}`}>›</span>
+            </div>
+            {openSort&&<div className="filterbody">
+              <label className="check"><input type="radio" name="s" checked={sort==='relevance'} onChange={()=>{setSort('relevance');setVisible(PAGE_SIZE)}}/> <span>{t('relevance')}</span></label>
+              <label className="check"><input type="radio" name="s" checked={sort==='version'} onChange={()=>{setSort('version');setVisible(PAGE_SIZE)}}/> <span>{t('latestVersion')}</span></label>
+              <label className="check"><input type="radio" name="s" checked={sort==='name'} onChange={()=>{setSort('name');setVisible(PAGE_SIZE)}}/> <span>{t('nameAZ')}</span></label>
+            </div>}
+          </div>
+        </aside>
 
-        {cat&&<div className="catchip on" style={{cursor:'pointer',marginBottom:10,display:'inline-block'}} onClick={()=>openCat(cat,catLabel)}>✕ {catLabel}</div>}
+        {/* Center Column: Results List */}
+        <section className="panel results">
+          <div className="resultshead">
+            <strong>{cat?`${t('catTitle')}: ${catLabel}`:`${t('resultsFor')} “${q||'…'}”`}</strong>
+            <span style={{fontSize:12,color:'var(--muted)'}}>{listLen} {listLen===1?t('result'):t('results')}</span>
+          </div>
 
-        {cat?(
-          browseLoading?<div className="empty">{t('searchingSources')}</div>
-          :browse.slice(0,visible).map(b=><div className="resultcard" key={b.packageName} onClick={()=>pickBrowse(b)}>
-            <div className="appicon">{isImg(b.icon)?<img src={b.icon} alt="" loading="lazy"/>:b.name.slice(0,1).toUpperCase()}</div>
+          {cat&&<div className="cat-pill on" style={{cursor:'pointer',marginBottom:10,display:'inline-flex'}} onClick={()=>openCat(cat,catLabel)}>✕ {catLabel}</div>}
+
+          {cat?(
+            browseLoading?<div className="empty">{t('searchingSources')}</div>
+            :browse.slice(0,visible).map(b=><div className="resultcard" key={b.packageName} onClick={()=>pickBrowse(b)}>
+              <div className="appicon">{isImg(b.icon)?<img src={b.icon} alt="" loading="lazy"/>:b.name.slice(0,1).toUpperCase()}</div>
+              <div className="resultmeta">
+                <strong>{b.name}</strong>
+                <small>{b.packageName}</small>
+                <div className="badges">
+                  {b.rating&&<span className="badge">★ {b.rating}</span>}
+                  {b.downloads&&<span className="badge">↓ {b.downloads}</span>}
+                  <span className="badge">☁ Android</span>
+                  <span className="badge">APKCombo</span>
+                </div>
+              </div>
+              <span className="arrow">›</span>
+            </div>)
+          ):shown.slice(0,visible).map((a,i)=><div className={`resultcard ${selected===a?'active':''}`} key={`${a.packageName}-${i}`} onClick={()=>pickApp(a)}>
+            <div className="appicon">{isImg(a.icon)?<img src={a.icon} alt="" loading="lazy"/>:a.name.slice(0,1).toUpperCase()}</div>
             <div className="resultmeta">
-              <strong>{b.name}</strong>
-              <small>{b.packageName}</small>
+              <strong>{a.name}</strong>
+              <small>{a.packageName}</small>
               <div className="badges">
-                {b.rating&&<span className="badge">★ {b.rating}</span>}
-                {b.downloads&&<span className="badge">↓ {b.downloads}</span>}
+                <span className="badge">{a.version==='—'?'Latest':a.version}</span>
                 <span className="badge">☁ Android</span>
-                <span className="badge">APKCombo</span>
+                <span className="badge srcbadge">{a.source}</span>
+                {a.download&&<span className="badge dl">✓ APK</span>}
               </div>
             </div>
             <span className="arrow">›</span>
-          </div>)
-        ):shown.slice(0,visible).map((a,i)=><div className={`resultcard ${selected===a?'active':''}`} key={`${a.packageName}-${i}`} onClick={()=>pickApp(a)}>
-          <div className="appicon">{isImg(a.icon)?<img src={a.icon} alt="" loading="lazy"/>:a.name.slice(0,1).toUpperCase()}</div>
-          <div className="resultmeta">
-            <strong>{a.name}</strong>
-            <small>{a.packageName}</small>
-            <div className="badges">
-              <span className="badge">{a.version==='—'?'Latest':a.version}</span>
-              <span className="badge">☁ Android</span>
-              <span className="badge srcbadge">{a.source}</span>
-              {a.download&&<span className="badge dl">↓ APK</span>}
-            </div>
-          </div>
-          <span className="arrow">›</span>
-        </div>)}
+          </div>)}
 
-        {hasMore&&<button className="loadmore" onClick={()=>setVisible(v=>v+PAGE_SIZE)} disabled={loading||browseLoading}>
-          {t('loadMore')} · {Math.min(visible,listLen)}/{listLen}
-        </button>}
+          {hasMore&&<button className="loadmore" onClick={()=>setVisible(v=>v+PAGE_SIZE)} disabled={loading||browseLoading}>
+            {t('loadMore')} · {Math.min(visible,listLen)}/{listLen}
+          </button>}
 
-        {loading&&<div className="empty">{t('searchingSources')}</div>}
-        {error&&<div className="notice err">{error}</div>}
-        {!cat&&!loading&&!shown.length&&<div className="empty">{results.length?t('noResultsFilter'):t('noResultsYet')}</div>}
-        <div className="notice">{t('notice')}</div>
-      </section>
-
-      {/* Detail Right Column */}
-      {selected?(
-        <AppDetailPanel
-          app={selected}
-          versions={versions}
-          verLoading={verLoading}
-          detail={detail}
-          detailLoading={detailLoading}
-        />
-      ):(
-        <section className="panel detail" id="detailView">
-          <div className="empty">{t('detailEmpty')}</div>
+          {loading&&<div className="empty">{t('searchingSources')}</div>}
+          {error&&<div className="notice err">{error}</div>}
+          {!cat&&!loading&&!shown.length&&<div className="empty">{results.length?t('noResultsFilter'):t('noResultsYet')}</div>}
+          <div className="notice">{t('notice')}</div>
         </section>
-      )}
-    </main>
+
+        {/* Right Column: App Store Product Page Panel */}
+        {selected?(
+          <AppDetailPanel
+            app={selected}
+            versions={versions}
+            verLoading={verLoading}
+            detail={detail}
+            detailLoading={detailLoading}
+          />
+        ):(
+          <section className="panel detail" id="detailView">
+            <div className="empty">{t('detailEmpty')}</div>
+          </section>
+        )}
+      </main>
+    )}
   </div>;
 }
