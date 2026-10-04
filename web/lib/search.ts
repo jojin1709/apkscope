@@ -179,6 +179,162 @@ export async function fDroidLatest(pkg:string):Promise<{download:string;version:
   return null;
 }
 
+export type GithubReleaseItem = {
+  name: string;
+  packageName: string;
+  version: string;
+  download?: string;
+  size?: number;
+  sourcePage: string;
+  icon?: string;
+  developer?: string;
+};
+
+const GITHUB_FOSS_REPOS: Record<string, { repo: string; pkg: string; name: string }> = {
+  termux: { repo: 'termux/termux-app', pkg: 'com.termux', name: 'Termux' },
+  newpipe: { repo: 'TeamNewPipe/NewPipe', pkg: 'org.schabi.newpipe', name: 'NewPipe' },
+  invizible: { repo: 'Gedsh/InviZible-Pro', pkg: 'pan.alexander.tordnscrypt', name: 'InviZible Pro' },
+  aegis: { repo: 'beemdevelopment/Aegis', pkg: 'com.beemdevelopment.aegis', name: 'Aegis Authenticator' },
+  netguard: { repo: 'M66B/NetGuard', pkg: 'eu.faircode.netguard', name: 'NetGuard' },
+  adaway: { repo: 'AdAway/AdAway', pkg: 'org.adaway', name: 'AdAway' },
+  revanced: { repo: 'ReVanced/revanced-manager', pkg: 'app.revanced.manager.flutter', name: 'ReVanced Manager' },
+  aurora: { repo: 'whyorean/AuroraStore', pkg: 'com.aurora.store', name: 'Aurora Store' },
+  mihon: { repo: 'mihonapp/mihon', pkg: 'eu.kanade.tachiyomi', name: 'Mihon' },
+  tachiyomi: { repo: 'mihonapp/mihon', pkg: 'eu.kanade.tachiyomi', name: 'Mihon' },
+  briar: { repo: 'briar/briar', pkg: 'org.briarproject.briar.android', name: 'Briar' },
+  k9: { repo: 'thunderbird/thunderbird-android', pkg: 'com.fsck.k9', name: 'Thunderbird (K-9 Mail)' },
+  vlc: { repo: 'videolan/vlc-android', pkg: 'org.videolan.vlc', name: 'VLC for Android' }
+};
+
+export async function searchGithubReleases(q: string): Promise<GithubReleaseItem[]> {
+  const normQ = q.trim().toLowerCase();
+  const items: GithubReleaseItem[] = [];
+  if (!normQ) return items;
+
+  // 1. Direct curated match for prominent security & FOSS tools
+  for (const [key, info] of Object.entries(GITHUB_FOSS_REPOS)) {
+    if (normQ.includes(key) || key.includes(normQ) || info.pkg.toLowerCase().includes(normQ)) {
+      try {
+        const txt = await fetchText(`https://api.github.com/repos/${info.repo}/releases/latest`, {
+          extra: { 'User-Agent': 'APKScope-App-Finder' }
+        });
+        if (txt) {
+          const rel = JSON.parse(txt);
+          const assets = Array.isArray(rel?.assets) ? rel.assets : [];
+          const apkAsset = assets.find((a: { name?: string }) => (a.name || '').toLowerCase().endsWith('.apk'));
+          items.push({
+            name: info.name,
+            packageName: info.pkg,
+            version: rel.tag_name || 'Latest Release',
+            download: apkAsset?.browser_download_url,
+            size: apkAsset?.size,
+            sourcePage: rel.html_url || `https://github.com/${info.repo}/releases`,
+            developer: info.repo.split('/')[0]
+          });
+          return items;
+        }
+      } catch {}
+    }
+  }
+
+  // 2. Generic GitHub repository search if no curated match
+  try {
+    const searchUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}+in:name,description&sort=stars&order=desc&per_page=3`;
+    const searchTxt = await fetchText(searchUrl, {
+      extra: { 'User-Agent': 'APKScope-App-Finder' }
+    });
+    if (searchTxt) {
+      const data = JSON.parse(searchTxt);
+      const repos = Array.isArray(data?.items) ? data.items : [];
+      for (const repo of repos) {
+        if (!repo?.full_name) continue;
+        const relTxt = await fetchText(`https://api.github.com/repos/${repo.full_name}/releases/latest`, {
+          extra: { 'User-Agent': 'APKScope-App-Finder' }
+        });
+        if (!relTxt) continue;
+        const rel = JSON.parse(relTxt);
+        const assets = Array.isArray(rel?.assets) ? rel.assets : [];
+        const apkAsset = assets.find((a: { name?: string }) => (a.name || '').toLowerCase().endsWith('.apk'));
+        if (apkAsset) {
+          items.push({
+            name: repo.name,
+            packageName: `github.${repo.full_name.replace('/', '.')}`,
+            version: rel.tag_name || 'Release',
+            download: apkAsset.browser_download_url,
+            size: apkAsset.size,
+            sourcePage: rel.html_url || repo.html_url,
+            developer: repo.owner?.login
+          });
+          if (items.length >= 2) break;
+        }
+      }
+    }
+  } catch {}
+
+  return items;
+}
+
+export type IzzyItem = {
+  name: string;
+  packageName: string;
+  version: string;
+  download?: string;
+  sourcePage: string;
+  icon?: string;
+};
+
+export async function searchIzzyOnDroid(q: string): Promise<IzzyItem[]> {
+  const normQ = q.trim();
+  if (!normQ) return [];
+  const items: IzzyItem[] = [];
+
+  // If query looks like a package or name, check Izzy API
+  const candidatePkg = PKG_RE.test(normQ) ? normQ : (GITHUB_FOSS_REPOS[normQ.toLowerCase()]?.pkg || '');
+  if (candidatePkg) {
+    try {
+      const txt = await fetchText(`https://apt.izzysoft.de/fdroid/api/v1/packages/${encodeURIComponent(candidatePkg)}`, {
+        extra: { 'User-Agent': 'APKScope-Izzy-Client' }
+      });
+      if (txt) {
+        const data = JSON.parse(txt);
+        const packages = Array.isArray(data?.packages) ? data.packages : [];
+        if (packages.length > 0) {
+          const top = packages[0];
+          const apkName = top.apkName || `${candidatePkg}_${top.versionCode}.apk`;
+          items.push({
+            name: normQ,
+            packageName: candidatePkg,
+            version: top.versionName || String(top.versionCode),
+            download: `https://apt.izzysoft.de/fdroid/repo/${apkName}`,
+            sourcePage: `https://apt.izzysoft.de/fdroid/index/apk/${encodeURIComponent(candidatePkg)}`
+          });
+        }
+      }
+    } catch {}
+  }
+  return items;
+}
+
+export type UptodownItem = {
+  name: string;
+  packageName: string;
+  version: string;
+  sourcePage: string;
+  icon?: string;
+};
+
+export function searchUptodown(q: string): UptodownItem[] {
+  const normQ = q.trim();
+  if (!normQ) return [];
+  return [{
+    name: normQ,
+    packageName: PKG_RE.test(normQ) ? normQ : `${normQ.toLowerCase().replace(/[^a-z0-9]/g, '')}.uptodown`,
+    version: 'Rollback Archive',
+    sourcePage: `https://en.uptodown.com/android/search/${encodeURIComponent(normQ)}`
+  }];
+}
+
+
 const norm=(s:string)=>s.toLowerCase().replace(/[^a-z0-9]/g,'');
 const base=(s:string)=>{
   let out=s;
@@ -196,7 +352,10 @@ export function buildResults(
   apt:Aptoide[],
   comb:ApkComboResult[],
   tap:Tap[],
-  fdr:FDroidItem[]=[]
+  fdr:FDroidItem[]=[],
+  gh:GithubReleaseItem[]=[],
+  izzy:IzzyItem[]=[],
+  upto:UptodownItem[]=[]
 ):App[]{
   const playByTitle=new Map(play.map(p=>[norm(p.name),p]));
   const playByBase=new Map(play.map(p=>[base(p.name),p]));
@@ -225,6 +384,39 @@ export function buildResults(
     if(a.store&&!target.store)target.store=a.store;
     if(a.signer&&!target.signer)target.signer=a.signer;
   };
+
+  // 1. GitHub Releases (Direct official untouched FOSS binaries)
+  for(const g of gh){
+    const item:App={
+      name:g.name,
+      packageName:g.packageName,
+      version:g.version||'Latest Release',
+      source:'GitHub Releases',
+      category:['FOSS','Security'],
+      icon:g.icon||'',
+      sourcePage:g.sourcePage,
+      download:g.download,
+      size:g.size,
+      variants:[]
+    };
+    push(item,g.packageName,norm(g.name));
+  }
+
+  // 2. IzzyOnDroid Curated FOSS repo
+  for(const iz of izzy){
+    const item:App={
+      name:iz.name,
+      packageName:iz.packageName,
+      version:iz.version||'Repo Build',
+      source:'IzzyOnDroid',
+      category:['Open Source','F-Droid'],
+      icon:iz.icon||'',
+      sourcePage:iz.sourcePage,
+      download:iz.download,
+      variants:[]
+    };
+    push(item,iz.packageName,norm(iz.name));
+  }
 
   for(const a of apk){
     const p=playByTitle.get(norm(a.name))||playByBase.get(base(a.name));
@@ -327,6 +519,21 @@ export function buildResults(
     push(item,f.packageName,norm(f.name));
   }
 
+  // Uptodown rollback and archive mirror
+  for(const u of upto){
+    const item:App={
+      name:u.name,
+      packageName:u.packageName,
+      version:u.version||'Rollback Archive',
+      source:'Uptodown',
+      category:['Archive'],
+      icon:u.icon||'',
+      sourcePage:u.sourcePage,
+      variants:[]
+    };
+    push(item,u.packageName,norm(u.name));
+  }
+
   // Ensure APKMirror mirror entries are accessible for top discovered packages if direct scraper hit challenge
   if(!apk.length && results.length>0){
     const topCandidates = results.filter(r=>PKG_RE.test(r.packageName)).slice(0,3);
@@ -404,15 +611,18 @@ export async function resolveDownloads(results:App[],cap=RESOLVE_CAP):Promise<Re
 }
 
 export async function searchSources(q:string):Promise<App[]>{
-  const [apk,play,apt,comb,tap,fdr]=await Promise.all([
+  const [apk,play,apt,comb,tap,fdr,gh,izzy]=await Promise.all([
     searchApkmirror(q),
     searchPlay(q),
     aptoideSearch(q,14),
     apkcomboSearch(q,12),
     searchTapTap(q),
-    searchFDroid(q,10)
+    searchFDroid(q,10),
+    searchGithubReleases(q),
+    searchIzzyOnDroid(q)
   ]);
-  return buildResults(apk,play,apt,comb,tap,fdr);
+  const upto = searchUptodown(q);
+  return buildResults(apk,play,apt,comb,tap,fdr,gh,izzy,upto);
 }
 
 export const searchCacheKey=(q:string)=>`search:${q.toLowerCase().trim()}`;

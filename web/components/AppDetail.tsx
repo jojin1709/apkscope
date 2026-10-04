@@ -3,9 +3,13 @@ import {useEffect,useState,useRef,useCallback} from 'react';
 import {useUI} from './Providers';
 import {downloadWithProgress,type Progress} from '../lib/download';
 import type {App,AppDetail,Version} from '../lib/types';
-import {IconStar,IconShield,IconGooglePlay,IconFDroid,IconApkMirror,IconAptoide,IconApkCombo,IconTapTap,IconWrench} from './Icons';
+import {
+  IconStar,IconShield,IconGooglePlay,IconFDroid,IconApkMirror,IconAptoide,IconApkCombo,IconTapTap,
+  IconWrench,IconGithub,IconIzzy,IconUptodown,IconTerminal,IconBookmark,IconBookmarkFilled,
+  IconCopy,IconCheck,IconAlertTriangle,IconExternalLink,IconFileText,IconLayers,IconLink,IconAndroid
+} from './Icons';
 
-const isImg=(s?:string)=>!!s&&/^https?:\/\//.test(s);
+const isImg=(s?:string)=>!!s&&/^(https?:\/\/|data:image\/)/.test(s);
 
 function fmtSize(n?:number){
   if(!n)return '';
@@ -27,6 +31,47 @@ type Props={
 };
 
 type ActiveTab='overview'|'releases'|'security';
+type RiskLevel='ALL'|'CRITICAL'|'HIGH'|'MEDIUM'|'SAFE';
+
+interface AndroidPermission {
+  name: string;
+  risk: 'CRITICAL'|'HIGH'|'MEDIUM'|'SAFE';
+  desc: string;
+  category: string;
+}
+
+const COMMON_PERMISSIONS: AndroidPermission[] = [
+  { name: 'android.permission.SYSTEM_ALERT_WINDOW', risk: 'CRITICAL', desc: 'Display overlay windows over other apps. Prone to tapjacking & credential capture.', category: 'Overlay & UI' },
+  { name: 'android.permission.BIND_ACCESSIBILITY_SERVICE', risk: 'CRITICAL', desc: 'Inspect entire screen content, keypresses, and perform automated touch gestures.', category: 'Accessibility' },
+  { name: 'android.permission.REQUEST_INSTALL_PACKAGES', risk: 'CRITICAL', desc: 'Trigger installation of unverified .apk binaries outside verified stores.', category: 'Package Dropper' },
+  { name: 'android.permission.READ_PRIVILEGED_PHONE_STATE', risk: 'CRITICAL', desc: 'Read sensitive hardware identifiers (IMEI, MEID, IMSI).', category: 'Telephony' },
+  { name: 'android.permission.CAMERA', risk: 'HIGH', desc: 'Capture raw camera feed and photos in foreground/background.', category: 'Hardware' },
+  { name: 'android.permission.RECORD_AUDIO', risk: 'HIGH', desc: 'Capture microphone audio streams.', category: 'Hardware' },
+  { name: 'android.permission.ACCESS_FINE_LOCATION', risk: 'HIGH', desc: 'Pinpoint precise GPS coordinates and Wi-Fi SSID scans.', category: 'Location' },
+  { name: 'android.permission.READ_CONTACTS', risk: 'HIGH', desc: 'Access device contacts database and stored phone numbers.', category: 'Personal Data' },
+  { name: 'android.permission.READ_SMS', risk: 'HIGH', desc: 'Read incoming SMS messages (frequently targeting OTP/2FA verification codes).', category: 'Telephony' },
+  { name: 'android.permission.WRITE_EXTERNAL_STORAGE', risk: 'HIGH', desc: 'Write to shared external public filesystem (data hijacking / overwrite risk).', category: 'Storage' },
+  { name: 'android.permission.QUERY_ALL_PACKAGES', risk: 'MEDIUM', desc: 'Enumerate all other applications installed on the victim device.', category: 'Reconnaissance' },
+  { name: 'android.permission.ACCESS_COARSE_LOCATION', risk: 'MEDIUM', desc: 'Cellular tower and approximate geographic location.', category: 'Location' },
+  { name: 'android.permission.POST_NOTIFICATIONS', risk: 'MEDIUM', desc: 'Post push notifications and prompt popups in system tray.', category: 'UI' },
+  { name: 'android.permission.USE_BIOMETRIC', risk: 'MEDIUM', desc: 'Trigger biometric authentication prompts (fingerprint / face ID).', category: 'Security' },
+  { name: 'android.permission.BLUETOOTH_CONNECT', risk: 'MEDIUM', desc: 'Discover and connect to paired Bluetooth peripherals and beacons.', category: 'Hardware' },
+  { name: 'android.permission.INTERNET', risk: 'SAFE', desc: 'Open outbound TCP/UDP network sockets.', category: 'Network' },
+  { name: 'android.permission.ACCESS_NETWORK_STATE', risk: 'SAFE', desc: 'Query Wi-Fi vs Cellular connection status.', category: 'Network' },
+  { name: 'android.permission.WAKE_LOCK', risk: 'SAFE', desc: 'Prevent CPU from entering sleep state.', category: 'Power' },
+  { name: 'android.permission.VIBRATE', risk: 'SAFE', desc: 'Control device haptic feedback motor.', category: 'Hardware' }
+];
+
+const KNOWN_INTENTS: Record<string, { scheme: string; testUri: string; desc: string }> = {
+  'org.telegram.messenger': { scheme: 'tg://', testUri: 'tg://resolve?domain=telegram', desc: 'Telegram Deep Link URI' },
+  'com.spotify.music': { scheme: 'spotify://', testUri: 'spotify://track/4cOdK2wGLETKBW3PvgPWqT', desc: 'Spotify Track & Playlist URI' },
+  'com.whatsapp': { scheme: 'whatsapp://', testUri: 'whatsapp://send?text=APKScope', desc: 'WhatsApp Message Intent' },
+  'com.instagram.android': { scheme: 'instagram://', testUri: 'instagram://user?username=security', desc: 'Instagram Profile Intent' },
+  'com.twitter.android': { scheme: 'twitter://', testUri: 'twitter://user?screen_name=twitter', desc: 'Twitter/X User Profile Intent' },
+  'com.discord': { scheme: 'discord://', testUri: 'discord://invite/...', desc: 'Discord Server Invite Intent' },
+  'org.videolan.vlc': { scheme: 'vlc://', testUri: 'vlc://https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', desc: 'VLC Media Stream Intent' },
+  'com.termux': { scheme: 'termux://', testUri: 'termux://context', desc: 'Termux Terminal Intent' }
+};
 
 export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onBack}:Props){
   const {t}=useUI();
@@ -39,11 +84,44 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
   const [qrData,setQrData]=useState('');
   const [lightboxIndex,setLightboxIndex]=useState<number|null>(null);
   const [userHash,setUserHash]=useState('');
+  const [isWatched,setIsWatched]=useState(false);
+  const [splitModalOpen,setSplitModalOpen]=useState(false);
+  const [permFilter,setPermFilter]=useState<RiskLevel>('ALL');
 
   const abort=useRef<AbortController|null>(null);
   const pkgOK=/^[a-zA-Z]\w*(\.\w+)+$/.test(app.packageName);
   const appPage=pkgOK?`/app/${app.packageName}?n=${encodeURIComponent(app.name)}`:'';
   const origin=typeof window!=='undefined'?window.location.origin:'';
+
+  // Check and sync watchlist
+  const checkWatchlist = useCallback(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem('apkscope:watchlist')||'[]');
+      setIsWatched(Array.isArray(raw)&&raw.some((x:{pkg:string})=>x.pkg===app.packageName));
+    }catch{
+      setIsWatched(false);
+    }
+  },[app.packageName]);
+
+  useEffect(()=>{
+    checkWatchlist();
+    window.addEventListener('apkscope:watchlist-updated',checkWatchlist);
+    return()=>window.removeEventListener('apkscope:watchlist-updated',checkWatchlist);
+  },[checkWatchlist]);
+
+  const toggleWatchlist=()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem('apkscope:watchlist')||'[]');
+      const list=Array.isArray(raw)?raw:[];
+      const exists=list.some((x:{pkg:string})=>x.pkg===app.packageName);
+      const next=exists
+        ? list.filter((x:{pkg:string})=>x.pkg!==app.packageName)
+        : [{pkg:app.packageName,name:app.name,icon:isImg(app.icon)?app.icon:''},...list];
+      localStorage.setItem('apkscope:watchlist',JSON.stringify(next));
+      setIsWatched(!exists);
+      window.dispatchEvent(new Event('apkscope:watchlist-updated'));
+    }catch{}
+  };
 
   useEffect(()=>{
     if(!pkgOK)return;
@@ -56,6 +134,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       window.dispatchEvent(new Event('apkscope:recent-updated'));
     }catch{}
   },[app.packageName,app.name,app.icon,pkgOK]);
+
 
   const start=useCallback(async(url:string,label='')=>{
     if(prog)return;
@@ -141,16 +220,27 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         {isImg(app.icon)?<img src={app.icon} alt={app.name}/>:app.name.slice(0,1).toUpperCase()}
       </div>
       <div className="detailmain">
-        <div className="detailtitle">
-          <h2>{app.name}</h2>
-          <span className="badge">Android</span>
-          {showDownload&&<span className="badge dl">{t('directDownload')}</span>}
+        <div className="detailtitle" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <h2>{app.name}</h2>
+            <span className="badge">Android</span>
+            {showDownload&&<span className="badge dl">{t('directDownload')}</span>}
+          </div>
+          {pkgOK&&<button
+            className="actionchip"
+            onClick={toggleWatchlist}
+            style={{padding:'6px 12px',borderRadius:20,border:'1px solid var(--line)',background:isWatched?'rgba(56, 189, 248, 0.15)':'var(--panel2)',color:isWatched?'#38bdf8':'var(--muted)',cursor:'pointer'}}
+            title={isWatched?'In Watchlist (Click to remove)':'Save to Watchlist'}
+          >
+            {isWatched?<IconBookmarkFilled size={14} color="#38bdf8"/>:<IconBookmark size={14}/>}
+            <span style={{fontWeight:600,fontSize:12}}>{isWatched?'Saved':'Watchlist'}</span>
+          </button>}
         </div>
 
         <div className="package" title={app.packageName}>
           <span>{app.packageName}</span>
           {pkgOK&&<button className="mini" onClick={()=>copy(app.packageName,'pkg')} title={t('copy')}>
-            {copied==='pkg'?t('copied'):'⧉'}
+            {copied==='pkg'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
           </button>}
         </div>
 
@@ -203,6 +293,24 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         </button>
       )}
 
+      {/* 1-Click ADB Install Quick Copy */}
+      {pkgOK&&(
+        <button
+          className="actionchip"
+          onClick={()=>copy(`adb install -r ${app.packageName}.apk`,'adb-quick')}
+          title="Copy adb install command"
+        >
+          <IconTerminal size={14}/>
+          <span>{copied==='adb-quick'?'Copied ADB!':'ADB Install'}</span>
+        </button>
+      )}
+
+      {/* Split APK (APKM / XAPK) Guide Modal Trigger */}
+      <button className="actionchip" onClick={()=>setSplitModalOpen(true)} title="Split APK / Bundle Guide">
+        <IconLayers size={14}/>
+        <span>Split APK Guide</span>
+      </button>
+
       {pkgOK&&<button className="actionchip" onClick={openQr}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="3" y="3" width="7" height="7"></rect>
@@ -213,19 +321,9 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         {t('qr')}
       </button>}
 
-      {pkgOK&&<a className="actionchip" href={`https://f-droid.org/en/packages/${encodeURIComponent(app.packageName)}/`} target="_blank" rel="noreferrer" title="Open on F-Droid">
-        <IconFDroid size={14}/> F-Droid
-      </a>}
-
       {pkgOK&&<button className="actionchip" onClick={()=>copy(origin+appPage,'link')} title={t('shareLink')}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="18" cy="5" r="3"></circle>
-          <circle cx="6" cy="12" r="3"></circle>
-          <circle cx="18" cy="19" r="3"></circle>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-        </svg>
-        {copied==='link'?t('copied'):t('shareLink')}
+        <IconCopy size={14}/>
+        <span>{copied==='link'?t('copied'):t('shareLink')}</span>
       </button>}
 
       {appPage&&<a className="actionchip" href={appPage}>
@@ -244,7 +342,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
     {/* Always-visible Store & Mirror Hub */}
     {pkgOK&&(
       <div className="store-mirrors-bar" style={{margin:'14px 0 16px',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-        <span style={{fontSize:11.5,fontWeight:750,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,marginRight:2}}>Available on:</span>
+        <span style={{fontSize:11.5,fontWeight:750,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,marginRight:2}}>Mirrors:</span>
         <a className="actionchip" href={`https://play.google.com/store/apps/details?id=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="Google Play Store">
           <IconGooglePlay size={14}/> Google Play
         </a>
@@ -259,6 +357,12 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         </a>
         <a className="actionchip" href={`https://apkcombo.com/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="APKCombo Archive">
           <IconApkCombo size={14}/> APKCombo
+        </a>
+        <a className="actionchip" href={`https://apt.izzysoft.de/fdroid/index/apk/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="IzzyOnDroid FOSS Repo">
+          <IconIzzy size={14}/> IzzyOnDroid
+        </a>
+        <a className="actionchip" href={`https://en.uptodown.com/android/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="Uptodown Rollback Archive">
+          <IconUptodown size={14}/> Uptodown
         </a>
         <a className="actionchip" href={`https://www.taptap.io/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="TapTap Games & Apps">
           <IconTapTap size={14}/> TapTap
@@ -292,7 +396,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       >
         <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
           <IconShield size={14}/>
-          <span>{t('tabSecurity')}</span>
+          <span>{t('tabSecurity')} & Pentest</span>
         </span>
       </button>
     </div>
@@ -407,6 +511,12 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
             <a className="actionchip" href={`https://apkcombo.com/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
               <IconApkCombo size={14}/> APKCombo
             </a>
+            <a className="actionchip" href={`https://apt.izzysoft.de/fdroid/index/apk/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
+              <IconIzzy size={14}/> IzzyOnDroid
+            </a>
+            <a className="actionchip" href={`https://en.uptodown.com/android/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
+              <IconUptodown size={14}/> Uptodown
+            </a>
             <a className="actionchip" href={`https://www.taptap.io/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
               <IconTapTap size={14}/> TapTap
             </a>
@@ -417,59 +527,314 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       </div>
     )}
 
-    {/* TAB 3: Security & Provenance */}
+    {/* TAB 3: Security & Provenance & Pentest Tools */}
     {activeTab==='security'&&(
-      <div className="security-card">
-        <h4 style={{display:'flex',alignItems:'center',gap:8}}>
-          <IconShield size={16} color="var(--blue)"/>
-          <span>{t('securityAudit')}</span>
-        </h4>
-        <div className="hash-row">
-          <span>Package Name</span>
-          <span className="hash-val">{app.packageName}</span>
-        </div>
-        <div className="hash-row">
-          <span>MD5 Checksum</span>
-          <span className="hash-val">{md5||'Not indexed from source'}</span>
-        </div>
-        {md5&&(
-          <div className="hash-row">
-            <span>VirusTotal Scanner</span>
-            <a href={vtLink(md5)} target="_blank" rel="noreferrer" className="primary" style={{padding:'4px 12px',fontSize:12,borderRadius:8}}>
-              {t('virusTotal')}
-            </a>
+      <div style={{display:'flex',flexDirection:'column',gap:14}}>
+        {/* Core Provenance Card */}
+        <div className="security-card">
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:12}}>
+            <h4 style={{display:'flex',alignItems:'center',gap:8,margin:0}}>
+              <IconShield size={16} color="var(--blue)"/>
+              <span>{t('securityAudit')} & Provenance</span>
+            </h4>
+            
+            {/* 1-Click Bug Bounty Markdown Exporter Buttons */}
+            <div style={{display:'flex',gap:8}}>
+              <button
+                className="actionchip"
+                onClick={()=>{
+                  const report = `# APKScope Pentest & Bug Bounty Audit Report
+**Date**: ${new Date().toISOString().slice(0,10)}
+**Target App**: ${app.name}
+**Package Name**: \`${app.packageName}\`
+**Version**: \`${versionLabel}\`
+**MD5 Checksum**: \`${md5 || 'N/A'}\`
+**Signer Fingerprint**: \`${signer || 'Unknown / Self-signed'}\`
+**VirusTotal Scan**: ${vtLink(md5) || 'N/A'}
+
+---
+### Discovered Source Mirrors
+- Google Play: https://play.google.com/store/apps/details?id=${app.packageName}
+- F-Droid: https://f-droid.org/en/packages/${app.packageName}/
+- APKMirror: https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(app.packageName)}
+- Aptoide: https://en.aptoide.com/app/${app.packageName}
+- APKCombo: https://apkcombo.com/search/${app.packageName}
+- IzzyOnDroid: https://apt.izzysoft.de/fdroid/index/apk/${app.packageName}
+- Uptodown: https://en.uptodown.com/android/search/${app.packageName}
+
+---
+### Android Attack Surface Checklist
+- [ ] Exported Activities / Receivers / Content Providers
+- [ ] Deep link intent handling and URI schemes
+- [ ] Cleartext HTTP traffic policy (android:usesCleartextTraffic)
+- [ ] Dangerous permissions: CAMERA, RECORD_AUDIO, ACCESS_FINE_LOCATION, SYSTEM_ALERT_WINDOW
+
+---
+*Generated with APKScope (https://apkscope.vercel.app)*`;
+                  copy(report,'bounty-md');
+                }}
+                title="Copy Markdown Bug Bounty Audit Report"
+              >
+                <IconFileText size={14}/>
+                <span>{copied==='bounty-md'?'Copied Markdown!':'Export Report (MD)'}</span>
+              </button>
+
+              <button
+                className="actionchip"
+                onClick={()=>{
+                  const jsonReport = {
+                    appName: app.name,
+                    packageName: app.packageName,
+                    version: versionLabel,
+                    checksums: { md5: md5 || null },
+                    signer: signer || null,
+                    virusTotal: vtLink(md5) || null,
+                    mirrors: {
+                      googlePlay: `https://play.google.com/store/apps/details?id=${app.packageName}`,
+                      fDroid: `https://f-droid.org/en/packages/${app.packageName}/`,
+                      apkMirror: `https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(app.packageName)}`,
+                      aptoide: `https://en.aptoide.com/app/${app.packageName}`,
+                      apkCombo: `https://apkcombo.com/search/${app.packageName}`,
+                      izzyOnDroid: `https://apt.izzysoft.de/fdroid/index/apk/${app.packageName}`,
+                      uptodown: `https://en.uptodown.com/android/search/${app.packageName}`
+                    },
+                    exportTimestamp: new Date().toISOString()
+                  };
+                  copy(JSON.stringify(jsonReport, null, 2),'bounty-json');
+                }}
+                title="Export JSON report"
+              >
+                <IconCopy size={14}/>
+                <span>{copied==='bounty-json'?'Copied JSON!':'Export JSON'}</span>
+              </button>
+            </div>
           </div>
-        )}
-        <div className="hash-row">
-          <span>{t('certFingerprint')}</span>
-          <span className="hash-val" title={signer||'None'}>{signer||'Unknown or Self-signed'}</span>
-        </div>
-        <div className="hash-row">
-          <span>{t('trust')} Classification</span>
-          <span style={{color:'var(--green)',fontWeight:700,display:'inline-flex',alignItems:'center',gap:4}}>
-            <IconShield size={13} color="var(--green)"/>
-            <span>Verified ({rank||'Community verified'})</span>
-          </span>
+
+          <div className="hash-row">
+            <span>Package Name</span>
+            <span className="hash-val">{app.packageName}</span>
+          </div>
+          <div className="hash-row">
+            <span>MD5 Checksum</span>
+            <span className="hash-val">{md5||'Not indexed from source'}</span>
+          </div>
+          {md5&&(
+            <div className="hash-row">
+              <span>VirusTotal Scanner</span>
+              <a href={vtLink(md5)} target="_blank" rel="noreferrer" className="primary" style={{padding:'4px 12px',fontSize:12,borderRadius:8}}>
+                {t('virusTotal')}
+              </a>
+            </div>
+          )}
+          <div className="hash-row">
+            <span>{t('certFingerprint')}</span>
+            <span className="hash-val" title={signer||'None'}>{signer||'Unknown or Self-signed'}</span>
+          </div>
+          <div className="hash-row">
+            <span>{t('trust')} Classification</span>
+            <span style={{color:'var(--green)',fontWeight:700,display:'inline-flex',alignItems:'center',gap:4}}>
+              <IconShield size={13} color="var(--green)"/>
+              <span>Verified ({rank||'Community verified'})</span>
+            </span>
+          </div>
+
+          {/* Live Checksum Verifier Tool */}
+          <div className="hash-checker" style={{marginTop:12}}>
+            <label style={{fontSize:13,fontWeight:750,display:'flex',alignItems:'center',gap:6}}>
+              <IconWrench size={14}/>
+              <span>{t('verifyHash')}</span>
+            </label>
+            <div className="hash-input-wrap">
+              <input
+                type="text"
+                className="hash-input"
+                value={userHash}
+                onChange={e=>setUserHash(e.target.value)}
+                placeholder={t('hashPlaceholder')}
+              />
+              {userHash&&<button className="mini" onClick={()=>setUserHash('')}>✕</button>}
+            </div>
+            {isHashMatch&&<div className="hash-status match">{t('hashMatch')}</div>}
+            {isHashMismatch&&<div className="hash-status mismatch">{t('hashMismatch')}</div>}
+          </div>
         </div>
 
-        {/* Live Checksum Verifier Tool */}
-        <div className="hash-checker">
-          <label style={{fontSize:13,fontWeight:750,display:'flex',alignItems:'center',gap:6}}>
-            <IconWrench size={14}/>
-            <span>{t('verifyHash')}</span>
-          </label>
-          <div className="hash-input-wrap">
-            <input
-              type="text"
-              className="hash-input"
-              value={userHash}
-              onChange={e=>setUserHash(e.target.value)}
-              placeholder={t('hashPlaceholder')}
-            />
-            {userHash&&<button className="mini" onClick={()=>setUserHash('')}>✕</button>}
+        {/* 1-Click ADB Install & Pentest Commands Box */}
+        <div className="security-card">
+          <h4 style={{display:'flex',alignItems:'center',gap:8,margin:'0 0 10px'}}>
+            <IconTerminal size={16} color="var(--blue)"/>
+            <span>1-Click ADB Install & Shell Commands</span>
+          </h4>
+          <p style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 10px'}}>
+            Quick terminal commands for connected emulators (AVD/Genymotion) and USB-debugging rooted test devices.
+          </p>
+
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {/* Quick ADB Install */}
+            <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>ADB Install Command</span>
+                <button
+                  className="mini"
+                  onClick={()=>copy(`adb install -r ${app.packageName}.apk`,'cmd-adb')}
+                >
+                  {copied==='cmd-adb'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                </button>
+              </div>
+              <code style={{fontSize:12,color:'var(--green)',fontFamily:'monospace'}}>
+                adb install -r {app.packageName}.apk
+              </code>
+            </div>
+
+            {/* Terminal Curl Direct Install */}
+            {downloadUrl&&(
+              <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                  <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>One-liner Terminal Fetch & Install</span>
+                  <button
+                    className="mini"
+                    onClick={()=>copy(`curl -sL "${downloadUrl}" -o ${app.packageName}.apk && adb install -r ${app.packageName}.apk`,'cmd-curl')}
+                  >
+                    {copied==='cmd-curl'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                  </button>
+                </div>
+                <code style={{fontSize:11.5,color:'var(--accent)',fontFamily:'monospace',wordBreak:'break-all'}}>
+                  curl -sL &quot;{downloadUrl.slice(0,60)}...&quot; -o {app.packageName}.apk &amp;&amp; adb install -r {app.packageName}.apk
+                </code>
+              </div>
+            )}
           </div>
-          {isHashMatch&&<div className="hash-status match">{t('hashMatch')}</div>}
-          {isHashMismatch&&<div className="hash-status mismatch">{t('hashMismatch')}</div>}
+        </div>
+
+        {/* Intent URL Scheme & Deep Link Finder */}
+        {pkgOK&&(
+          <div className="security-card">
+            <h4 style={{display:'flex',alignItems:'center',gap:8,margin:'0 0 10px'}}>
+              <IconLink size={16} color="var(--blue)"/>
+              <span>Intent URL Scheme &amp; Deep-Link Explorer</span>
+            </h4>
+            <p style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 10px'}}>
+              Evaluate exported intent filters, custom schemes, and deep-link attack surfaces for CSRF, account hijacking, or intent injection.
+            </p>
+
+            {KNOWN_INTENTS[app.packageName] ? (
+              <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontWeight:700,fontSize:12.5,color:'var(--text)'}}>Known Scheme: <code>{KNOWN_INTENTS[app.packageName].scheme}</code></span>
+                  <span style={{fontSize:11,color:'var(--muted)'}}>{KNOWN_INTENTS[app.packageName].desc}</span>
+                </div>
+                <div style={{marginTop:6,display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+                  <code style={{fontSize:11.5,color:'var(--blue)',wordBreak:'break-all'}}>{KNOWN_INTENTS[app.packageName].testUri}</code>
+                  <button
+                    className="mini"
+                    onClick={()=>copy(`adb shell am start -a android.intent.action.VIEW -d "${KNOWN_INTENTS[app.packageName].testUri}"`,'cmd-intent')}
+                  >
+                    {copied==='cmd-intent'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontWeight:700,fontSize:12.5,color:'var(--text)'}}>Standard Android VIEW Intent:</span>
+                  <button
+                    className="mini"
+                    onClick={()=>copy(`adb shell am start -a android.intent.action.VIEW -d "intent:#Intent;package=${app.packageName};action=android.intent.action.VIEW;end"`,'cmd-gen-intent')}
+                  >
+                    {copied==='cmd-gen-intent'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                  </button>
+                </div>
+                <code style={{fontSize:11.5,color:'var(--blue)',wordBreak:'break-all',marginTop:4,display:'block'}}>
+                  adb shell am start -a android.intent.action.VIEW -d &quot;intent:#Intent;package={app.packageName};action=android.intent.action.VIEW;end&quot;
+                </code>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Android Permission & Attack Surface Inspector */}
+        <div className="security-card">
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:12}}>
+            <h4 style={{display:'flex',alignItems:'center',gap:8,margin:0}}>
+              <IconAndroid size={16} color="var(--green)"/>
+              <span>Android Permission &amp; Attack Surface Inspector</span>
+            </h4>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {(['ALL','CRITICAL','HIGH','MEDIUM','SAFE'] as RiskLevel[]).map(lvl=>(
+                <button
+                  key={lvl}
+                  className={`tab ${permFilter===lvl?'active':''}`}
+                  style={{padding:'3px 10px',fontSize:11,borderRadius:14,height:26}}
+                  onClick={()=>setPermFilter(lvl)}
+                >
+                  {lvl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 12px'}}>
+            Key Android permissions evaluated against standard mobile attack surface models (OWASP MASVS / Android Security Bulletin).
+          </p>
+
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {COMMON_PERMISSIONS.filter(p=>permFilter==='ALL'||p.risk===permFilter).map(p=>{
+              const color = p.risk==='CRITICAL'?'#ef4444':p.risk==='HIGH'?'#f97316':p.risk==='MEDIUM'?'#eab308':'#10b981';
+              const bg = p.risk==='CRITICAL'?'rgba(239, 68, 68, 0.12)':p.risk==='HIGH'?'rgba(249, 115, 22, 0.12)':p.risk==='MEDIUM'?'rgba(234, 179, 8, 0.12)':'rgba(16, 185, 129, 0.12)';
+              return (
+                <div key={p.name} style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
+                    <code style={{fontSize:12,fontWeight:700,color:'var(--text)',fontFamily:'monospace'}}>{p.name}</code>
+                    <span style={{fontSize:10.5,fontWeight:800,letterSpacing:.5,color,background:bg,padding:'2px 8px',borderRadius:8}}>
+                      {p.risk}
+                    </span>
+                  </div>
+                  <div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>
+                    {p.desc}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Split APK (APKM / XAPK) Guide Modal */}
+    {splitModalOpen&&(
+      <div className="modal" onClick={()=>setSplitModalOpen(false)}>
+        <div className="modalbox" onClick={e=>e.stopPropagation()} style={{maxWidth:540}}>
+          <div className="modalhead">
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <IconLayers size={18} color="var(--blue)"/>
+              <strong>Split APK (APKM / XAPK) Installation Helper</strong>
+            </div>
+            <button className="mini" onClick={()=>setSplitModalOpen(false)}>✕</button>
+          </div>
+          
+          <div style={{padding:'14px 18px',fontSize:13,lineHeight:1.6,color:'var(--text)'}}>
+            <p style={{margin:'0 0 12px',color:'var(--muted)'}}>
+              Many apps from APKMirror and APKCombo are packaged as Android App Bundles (Split APKs). Because split APKs contain architecture-specific and screen-density slices, Android&apos;s standard package installer cannot install them by simply tapping one file.
+            </p>
+
+            <h5 style={{margin:'12px 0 6px',fontSize:13.5,color:'var(--text)'}}>Method 1: Install via Split APKs Installer (SAI) — Recommended</h5>
+            <p style={{margin:'0 0 8px',fontSize:12.5,color:'var(--muted)'}}>
+              Install the open-source <b>SAI (Split APKs Installer)</b> from F-Droid. Open SAI, tap &quot;Install APKs&quot;, and select your downloaded .apkm or .xapk bundle.
+            </p>
+
+            <h5 style={{margin:'14px 0 6px',fontSize:13.5,color:'var(--text)'}}>Method 2: Multi-Split Install via ADB (Command Line)</h5>
+            <p style={{margin:'0 0 6px',fontSize:12.5,color:'var(--muted)'}}>
+              If you have extracted the splits into a directory, install all splits simultaneously into your connected phone or emulator:
+            </p>
+            <div style={{background:'var(--panel2)',border:'1px solid var(--line)',padding:'8px 12px',borderRadius:8,fontFamily:'monospace',fontSize:11.5,color:'var(--green)'}}>
+              adb install-multiple base.apk split_config.arm64_v8a.apk split_config.xxhdpi.apk
+            </div>
+
+            <h5 style={{margin:'14px 0 6px',fontSize:13.5,color:'var(--text)'}}>Method 3: Extract .XAPK as ZIP</h5>
+            <p style={{margin:'0 0 10px',fontSize:12.5,color:'var(--muted)'}}>
+              Both <code>.xapk</code> and <code>.apkm</code> files are standard ZIP containers. Rename the file extension to <code>.zip</code>, extract the contents, and you will find the base APK and OBB assets.
+            </p>
+          </div>
         </div>
       </div>
     )}
@@ -513,3 +878,4 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
     )}
   </section>;
 }
+

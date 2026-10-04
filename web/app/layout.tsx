@@ -50,7 +50,7 @@ export default function RootLayout({children}:{children:React.ReactNode}){
         <Footer/>
       </Providers>
       <SWRegister/>
-      {process.env.NODE_ENV==='production'&&<script defer src="https://va.vercel-scripts.com/v1/script.js" data-sdkn="@vercel/analytics" data-sdkv="1.5.0"/>}
     </body>
   </html>;
 }
+

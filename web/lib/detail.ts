@@ -29,12 +29,88 @@ async function fdroidVersions(pkg:string):Promise<Version[]>{
   return out;
 }
 
+const GITHUB_PKG_MAP: Record<string, string> = {
+  'com.termux': 'termux/termux-app',
+  'org.schabi.newpipe': 'TeamNewPipe/NewPipe',
+  'pan.alexander.tordnscrypt': 'Gedsh/InviZible-Pro',
+  'com.beemdevelopment.aegis': 'beemdevelopment/Aegis',
+  'eu.faircode.netguard': 'M66B/NetGuard',
+  'org.adaway': 'AdAway/AdAway',
+  'app.revanced.manager.flutter': 'ReVanced/revanced-manager',
+  'com.aurora.store': 'whyorean/AuroraStore',
+  'eu.kanade.tachiyomi': 'mihonapp/mihon',
+  'org.briarproject.briar.android': 'briar/briar',
+  'com.fsck.k9': 'thunderbird/thunderbird-android',
+  'org.videolan.vlc': 'videolan/vlc-android'
+};
+
+async function githubVersions(pkg: string): Promise<Version[]> {
+  const repo = GITHUB_PKG_MAP[pkg];
+  if (!repo) return [];
+  try {
+    const txt = await fetchText(`https://api.github.com/repos/${repo}/releases?per_page=4`, {
+      extra: { 'User-Agent': 'APKScope-Client' }
+    });
+    if (!txt) return [];
+    const rels = JSON.parse(txt);
+    if (!Array.isArray(rels)) return [];
+    const out: Version[] = [];
+    for (const rel of rels) {
+      const assets = Array.isArray(rel?.assets) ? rel.assets : [];
+      const apk = assets.find((a: { name?: string }) => (a.name || '').toLowerCase().endsWith('.apk'));
+      if (apk) {
+        out.push({
+          version: rel.tag_name || 'Release',
+          size: apk.size || 0,
+          md5: '',
+          date: rel.published_at ? rel.published_at.slice(0, 10) : '',
+          src: 'GitHub Releases',
+          download: apk.browser_download_url,
+          page: rel.html_url
+        });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+async function izzyVersions(pkg: string): Promise<Version[]> {
+  try {
+    const txt = await fetchText(`https://apt.izzysoft.de/fdroid/api/v1/packages/${encodeURIComponent(pkg)}`, {
+      extra: { 'User-Agent': 'APKScope-Izzy-Client' }
+    });
+    if (!txt) return [];
+    const data = JSON.parse(txt);
+    const packages = Array.isArray(data?.packages) ? data.packages : [];
+    const out: Version[] = [];
+    for (const p of packages.slice(0, 5)) {
+      const apkName = p.apkName || `${pkg}_${p.versionCode}.apk`;
+      out.push({
+        version: p.versionName || String(p.versionCode),
+        size: 0,
+        md5: p.hash || '',
+        date: '',
+        src: 'IzzyOnDroid',
+        download: `https://apt.izzysoft.de/fdroid/repo/${apkName}`,
+        page: `https://apt.izzysoft.de/fdroid/index/apk/${encodeURIComponent(pkg)}`
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export async function getVersions(pkg:string,name?:string):Promise<Version[]>{
   if(!PKG_RE.test(pkg))return[];
-  const [apt,fd,apkcRaw]=await Promise.all([
+  const [apt,fd,apkcRaw,gh,izzy]=await Promise.all([
     aptoideVersions(pkg,name),
     fdroidVersions(pkg),
-    apkcomboVersions(pkg,name||'')
+    apkcomboVersions(pkg,name||''),
+    githubVersions(pkg),
+    izzyVersions(pkg)
   ]);
   await Promise.all(apkcRaw.slice(0,3).map(async v=>{
     if(v.page){
@@ -71,6 +147,14 @@ export async function getVersions(pkg:string,name?:string):Promise<Version[]>{
       date:'',
       src:'TapTap',
       page:`https://www.taptap.io/search/${encodeURIComponent(pkg)}`
+    },
+    {
+      version:'Uptodown Rollback Archive',
+      size:0,
+      md5:'',
+      date:'',
+      src:'Uptodown',
+      page:`https://en.uptodown.com/android/search/${encodeURIComponent(pkg)}`
     }
   ];
 
@@ -88,7 +172,7 @@ export async function getVersions(pkg:string,name?:string):Promise<Version[]>{
 
   const seen=new Set<string>();
   const versions:Version[]=[];
-  for(const v of [...apt,...fd,...apkc,...mirrorReleases]){
+  for(const v of [...gh,...izzy,...apt,...fd,...apkc,...mirrorReleases]){
     const key=`${v.src}-${v.version}`;
     if(seen.has(key))continue;
     seen.add(key);

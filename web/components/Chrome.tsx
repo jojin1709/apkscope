@@ -116,7 +116,7 @@ export function TopBar(){
 
     {aboutOpen&&(
       <div className="modal" onClick={()=>setAboutOpen(false)}>
-        <div className="modalbox" onClick={e=>e.stopPropagation()} style={{textAlign:'left'}}>
+        <div className="modalbox" onClick={e=>e.stopPropagation()} style={{textAlign:'left',maxWidth:520}}>
           <div className="modalhead">
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <IconShield size={22} color="var(--blue)"/>
@@ -127,9 +127,31 @@ export function TopBar(){
           <p style={{fontSize:13,lineHeight:1.6,color:'var(--muted)',margin:'0 0 14px'}}>
             {t('aboutDescription')}
           </p>
+
+          {/* Developer Card */}
+          <div style={{background:'var(--panel2)',padding:'12px 14px',borderRadius:12,border:'1px solid var(--line)',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:750,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5}}>Developer & Security Researcher</div>
+              <div style={{fontSize:15,fontWeight:800,color:'var(--text)',marginTop:2}}>JOJIN JOHN</div>
+            </div>
+            <a
+              href="https://www.linkedin.com/in/jojin-john/"
+              target="_blank"
+              rel="noreferrer"
+              className="actionchip"
+              style={{background:'rgba(37,99,235,0.15)',borderColor:'rgba(37,99,235,0.35)',color:'#60a5fa',fontWeight:700,padding:'6px 12px',borderRadius:20,fontSize:12.5}}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{marginRight:2}}>
+                <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.2V10.9H6.46M7.83 6.2a1.67 1.67 0 0 0-1.67 1.67c0 .92.75 1.67 1.67 1.67s1.67-.75 1.67-1.67c0-.92-.75-1.67-1.67-1.67Z"/>
+              </svg>
+              LinkedIn Profile
+            </a>
+          </div>
+
           <div style={{background:'var(--panel2)',padding:14,borderRadius:12,border:'1px solid var(--line)',fontSize:12.5,lineHeight:1.6}}>
-            <div><b>Multi-Store Discovery:</b> Scrapes APKMirror, Google Play, F-Droid, Aptoide, APKCombo, and TapTap in parallel.</div>
-            <div style={{marginTop:6}}><b>Direct Stream:</b> Downloads stream through an allowlisted Cloudflare Worker proxy directly from the publisher.</div>
+            <div><b>Multi-Store Discovery:</b> Searches GitHub Releases (FOSS), IzzyOnDroid, Uptodown, Google Play, F-Droid, APKMirror, Aptoide, APKCombo, and TapTap in parallel.</div>
+            <div style={{marginTop:6}}><b>Direct Stream:</b> Downloads stream through an allowlisted Cloudflare Worker proxy directly from official servers.</div>
+            <div style={{marginTop:6}}><b>Security &amp; Pentest:</b> Android permission attack surface evaluation, ADB 1-click install commands, and Bug Bounty Markdown exporter.</div>
             <div style={{marginTop:6}}><b>Zero Account:</b> No login, no telemetry, no tracking, completely private.</div>
           </div>
           <div style={{marginTop:18,textAlign:'right'}}>
@@ -146,7 +168,22 @@ export function Footer(){
   return <footer className="footer" id="about">
     <div style={{maxWidth:1520,margin:'0 auto',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
       <div>{t('footer')}</div>
-      <div style={{fontSize:12,color:'var(--muted)'}}>APKScope • PlayStore & AppStore Discovery Interface</div>
+      <div style={{fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <span>APKScope • Android Security Discovery</span>
+        <span>•</span>
+        <span>
+          Developed by{' '}
+          <a
+            href="https://www.linkedin.com/in/jojin-john/"
+            target="_blank"
+            rel="noreferrer"
+            style={{color:'var(--accent)',fontWeight:750,textDecoration:'underline'}}
+          >
+            JOJIN JOHN
+          </a>
+        </span>
+      </div>
     </div>
   </footer>;
 }
+

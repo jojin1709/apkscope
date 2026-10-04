@@ -12,7 +12,7 @@
   --card:#ffffff;--hover:#f8fafc;--active:#2563eb;
   --badge-bg:#ecfdf5;--badge-fg:#047857;--tag-bg:#eff6ff;--tag-fg:#1d4ed8;
   --trust-bg:#ecfdf5;--trust-fg:#047857;--store-bg:#fffbeb;--store-fg:#b45309;
-  --notice-bg:#fffbeb;--notice-border:#fde68a;--notice-fg:#92400e;
+  --notice-bg:#f1f5f9;--notice-border:#e2e8f0;--notice-fg:#475569;
   --err-bg:#fef2f2;--err-border:#fecaca;--err-fg:#b91c1c;
   --pill-bg:#eff6ff;--pill-fg:#1e40af;--src-bg:#f1f5f9;--src-fg:#334155;
   --fill:linear-gradient(90deg,#10b981,#059669);
@@ -33,7 +33,7 @@
   --chip-text:#cbd5e1;--nav-link:#94a3b8;
   --badge-bg:#064e3b;--badge-fg:#6ee7b7;--tag-bg:#172554;--tag-fg:#93c5fd;
   --trust-bg:#064e3b;--trust-fg:#6ee7b7;--store-bg:#451a03;--store-fg:#fcd34d;
-  --notice-bg:#291e0a;--notice-border:#78350f;--notice-fg:#fde68a;
+  --notice-bg:#162036;--notice-border:#1e293b;--notice-fg:#94a3b8;
   --err-bg:#450a0a;--err-border:#7f1d1d;--err-fg:#fca5a5;
   --pill-bg:#172554;--pill-fg:#93c5fd;--src-bg:#1e293b;--src-fg:#cbd5e1;
 }
@@ -376,11 +376,11 @@ img{color:transparent}
 .loadmore:hover{background:rgba(37,99,235,.07)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13.5px}
 .notice{
-  background:var(--notice-bg);border:1px solid var(--notice-border);color:var(--notice-fg);
+  background:var(--panel2);border:1px solid var(--line);color:var(--muted);
   padding:12px 14px;border-radius:12px;font-size:12px;line-height:1.55;margin-top:14px;
 }
-.notice.err{background:var(--err-bg);border-color:var(--err-border);color:var(--err-fg)}
-.notice.err a{text-decoration:underline}
+.notice.err{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444}
+.notice.err a{text-decoration:underline;color:#ef4444}
 
 /* ========================================================
    PLAY STORE / APP STORE PRODUCT PAGE (RIGHT PANEL)

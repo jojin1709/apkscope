@@ -1,19 +1,21 @@
 'use client';
-import {useState,useMemo,useEffect,useRef} from 'react';
+import {useState,useMemo,useEffect,useRef,useCallback} from 'react';
 import {useUI} from '../components/Providers';
 import {AppDetailPanel} from '../components/AppDetail';
 import type {App,AppDetail,BrowseItem,Suggest,Version} from '../lib/types';
 import {
   IconFlame,IconGame,IconChat,IconWrench,IconChart,IconCamera,IconMusic,IconVideo,
   IconMail,IconSparkles,IconShield,IconStar,IconClock,IconTrophy,IconBolt,
-  IconGooglePlay,IconFDroid,IconApkMirror,IconAptoide,IconApkCombo,IconTapTap
+  IconGooglePlay,IconFDroid,IconApkMirror,IconAptoide,IconApkCombo,IconTapTap,
+  IconGithub,IconIzzy,IconUptodown,IconBookmark,IconBookmarkFilled,IconTerminal,IconLayers,IconFileText,IconCopy,IconCheck
 } from '../components/Icons';
 
 type Sort='relevance'|'version'|'name';
 const PAGE_SIZE=8;
 const PKG_RE=/^[a-zA-Z]\w*(\.\w+)+$/;
-const SOURCE_LIST=['APKMirror','Google Play','Aptoide','APKCombo','TapTap','F-Droid'];
+const SOURCE_LIST=['APKMirror','Google Play','Aptoide','APKCombo','TapTap','F-Droid','GitHub Releases','IzzyOnDroid','Uptodown'];
 const POPULAR=['WhatsApp','Instagram','Telegram','Spotify','PayPal','Minecraft','Termux','Signal','F-Droid'];
+
 
 const CATS=[
   {k:'trending',l:'Trending',icon:'flame'},
@@ -122,6 +124,7 @@ export default function Home(){
   const [browseLoading,setBrowseLoading]=useState(false);
   const [trending,setTrending]=useState<BrowseItem[]>([]);
   const [recent,setRecent]=useState<Recent[]>([]);
+  const [watchlist,setWatchlist]=useState<Recent[]>([]);
   const [error,setError]=useState('');
 
   // Tools state
@@ -139,6 +142,13 @@ export default function Home(){
   const sugTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const resolvedRef=useRef<Set<string>>(new Set());
 
+  const loadWatchlist=useCallback(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem('apkscope:watchlist')||'[]');
+      setWatchlist(Array.isArray(raw)?raw:[]);
+    }catch{}
+  },[]);
+
   function loadRecent(){
     try{
       const raw=JSON.parse(localStorage.getItem('apkscope:recent')||'[]');
@@ -146,7 +156,27 @@ export default function Home(){
     }catch{}
   }
 
+  function toggleWatchlistCard(item:App,e:React.MouseEvent){
+    e.stopPropagation();
+    try{
+      const raw=JSON.parse(localStorage.getItem('apkscope:watchlist')||'[]');
+      const list=Array.isArray(raw)?raw:[];
+      const exists=list.some((x:{pkg:string})=>x.pkg===item.packageName);
+      const next=exists
+        ? list.filter((x:{pkg:string})=>x.pkg!==item.packageName)
+        : [{pkg:item.packageName,name:item.name,icon:isImg(item.icon)?item.icon:''},...list];
+      localStorage.setItem('apkscope:watchlist',JSON.stringify(next));
+      setWatchlist(next);
+      window.dispatchEvent(new Event('apkscope:watchlist-updated'));
+    }catch{}
+  }
+
+
   useEffect(()=>{
+    loadRecent();
+    loadWatchlist();
+    window.addEventListener('apkscope:watchlist-updated',loadWatchlist);
+    window.addEventListener('apkscope:recent-updated',loadRecent);
     const syncHash=()=>{
       const h=window.location.hash.replace('#','');
       if(h==='sources'||h==='tools'||h==='apps'){
@@ -165,8 +195,11 @@ export default function Home(){
     return ()=>{
       window.removeEventListener('hashchange',syncHash);
       window.removeEventListener('apkscope:tab',onNav);
+      window.removeEventListener('apkscope:watchlist-updated',loadWatchlist);
+      window.removeEventListener('apkscope:recent-updated',loadRecent);
     };
-  },[]);
+  },[loadWatchlist]);
+
 
   useEffect(()=>{
     function onDocClick(e:MouseEvent){
@@ -584,6 +617,69 @@ export default function Home(){
               <a className="ghostbtn" href="https://www.taptap.io" target="_blank" rel="noreferrer">Official Site</a>
             </div>
           </div>
+          <div className="source-dir-card">
+            <div className="source-dir-head">
+              <div className="source-dir-icon"><IconGithub size={28}/></div>
+
+              <div>
+                <h3>GitHub Releases (FOSS)</h3>
+                <span className="source-dir-badge">Official Untouched Binaries</span>
+              </div>
+            </div>
+            <p className="source-dir-desc">
+              Direct release assets from verified FOSS repositories (Termux, NewPipe, InviZible, Aegis Authenticator, NetGuard, Revanced, AdAway).
+            </p>
+            <div className="source-dir-meta">
+              <span>Direct GitHub Asset Stream</span>
+              <span>Developer-Signed Untouched APKs</span>
+            </div>
+            <div className="source-dir-actions">
+              <button className="primary" onClick={()=>choose('Termux')}>Search GitHub FOSS</button>
+              <a className="ghostbtn" href="https://github.com" target="_blank" rel="noreferrer">GitHub Releases</a>
+            </div>
+          </div>
+
+          <div className="source-dir-card">
+            <div className="source-dir-head">
+              <div className="source-dir-icon"><IconIzzy size={28}/></div>
+              <div>
+                <h3>IzzyOnDroid Repo</h3>
+                <span className="source-dir-badge">Independent F-Droid</span>
+              </div>
+            </div>
+            <p className="source-dir-desc">
+              The largest curated third-party F-Droid repository for independent open-source developers whose apps are verified and signed.
+            </p>
+            <div className="source-dir-meta">
+              <span>Curated Open-Source Builds</span>
+              <span>Direct Package Repository Index</span>
+            </div>
+            <div className="source-dir-actions">
+              <button className="primary" onClick={()=>choose('NewPipe')}>Search IzzyOnDroid</button>
+              <a className="ghostbtn" href="https://apt.izzysoft.de/fdroid/" target="_blank" rel="noreferrer">Official Site</a>
+            </div>
+          </div>
+
+          <div className="source-dir-card">
+            <div className="source-dir-head">
+              <div className="source-dir-icon"><IconUptodown size={28}/></div>
+              <div>
+                <h3>Uptodown Archive</h3>
+                <span className="source-dir-badge">Rollback &amp; Versions</span>
+              </div>
+            </div>
+            <p className="source-dir-desc">
+              One of the oldest and largest independent app archives with extensive version rollback history and malware safety reports.
+            </p>
+            <div className="source-dir-meta">
+              <span>Historical Version Rollbacks</span>
+              <span>Safety Scans &amp; Rollbacks</span>
+            </div>
+            <div className="source-dir-actions">
+              <button className="primary" onClick={()=>choose('Telegram')}>Search Uptodown</button>
+              <a className="ghostbtn" href="https://en.uptodown.com/android" target="_blank" rel="noreferrer">Official Site</a>
+            </div>
+          </div>
         </div>
       </main>
     )}
@@ -678,6 +774,38 @@ export default function Home(){
             </ul>
             <div style={{background:'var(--panel2)',padding:10,borderRadius:8,fontSize:12,fontFamily:'monospace'}}>
               apksigner verify --verbose --print-certs app.apk
+            </div>
+          </div>
+
+          <div className="tool-box-card">
+            <h3><IconTerminal size={18} color="var(--blue)"/> 1-Click ADB Install &amp; Shell Tools</h3>
+            <p style={{fontSize:13,color:'var(--muted)',lineHeight:1.6}}>
+              Deploy downloaded APKs directly to emulators or rooted physical hardware without manual file transfers.
+            </p>
+            <div style={{background:'var(--panel2)',padding:10,borderRadius:8,fontSize:12,fontFamily:'monospace',marginTop:12}}>
+              <div>adb install -r target_app.apk</div>
+              <div style={{marginTop:4,color:'var(--muted)'}}># Pull APK from device:</div>
+              <div>adb shell pm path com.example.app</div>
+            </div>
+          </div>
+
+          <div className="tool-box-card">
+            <h3><IconFileText size={18} color="var(--green)"/> Bug Bounty &amp; Pentest Report Exporter</h3>
+            <p style={{fontSize:13,color:'var(--muted)',lineHeight:1.6}}>
+              Generate standardized Markdown and JSON audit deliverables ready to paste directly into HackerOne, Bugcrowd, or pentest deliverables.
+            </p>
+            <p style={{fontSize:12.5,color:'var(--muted)',lineHeight:1.6,marginTop:8}}>
+              Includes package names, cryptographic SHA-256 / MD5 checksums, signer fingerprints, VirusTotal scanners, and mirror provenance.
+            </p>
+          </div>
+
+          <div className="tool-box-card">
+            <h3><IconLayers size={18} color="var(--purple)"/> Split APK (APKM / XAPK) Bundles Guide</h3>
+            <p style={{fontSize:13,color:'var(--muted)',lineHeight:1.6}}>
+              Modern Android App Bundles require multi-split installation. Use <b>SAI (Split APKs Installer)</b> from F-Droid or ADB multi-install:
+            </p>
+            <div style={{background:'var(--panel2)',padding:10,borderRadius:8,fontSize:12,fontFamily:'monospace',marginTop:8}}>
+              adb install-multiple base.apk split_arm64.apk split_hdpi.apk
             </div>
           </div>
         </div>
@@ -817,7 +945,38 @@ export default function Home(){
         {/* APP STORE DISCOVERY SECTIONS (Visible when no search query is active) */}
         {isStoreDiscovery&&(
           <>
+            {/* Watchlist / Saved Apps Shelf */}
+            {watchlist.length>0&&(
+              <section className="store-section">
+                <div className="section-header">
+                  <h3>
+                    <IconBookmarkFilled size={20} color="#38bdf8"/>
+                    <span>Saved Apps &amp; Watchlist ({watchlist.length})</span>
+                    <span className="section-sub">— Local starred audit targets</span>
+                  </h3>
+                </div>
+                <div className="apps-rail">
+                  {watchlist.map(x=><div
+                    className="app-card-rail"
+                    key={x.pkg}
+                    onClick={()=>choose(x.name)}
+                    title={`Open ${cleanTitle(x.name)}`}
+                  >
+                    <div className="app-icon-rail">
+                      <img src={isImg(x.icon)?x.icon:''} alt="" loading="lazy" onError={e=>{e.currentTarget.style.display='none'}}/>
+                    </div>
+                    <div className="app-name-rail">{cleanTitle(x.name)}</div>
+                    <div style={{fontSize:11,color:'var(--muted)',textOverflow:'ellipsis',overflow:'hidden',whiteSpace:'nowrap',maxWidth:100}}>
+                      {x.pkg}
+                    </div>
+                    <button className="app-get-rail" style={{borderColor:'var(--blue)',color:'var(--blue)'}}>VIEW</button>
+                  </div>)}
+                </div>
+              </section>
+            )}
+
             {/* Section 1: Trending Apps Rail */}
+
             {trending.length>0&&(
               <section className="store-section">
                 <div className="section-header">
@@ -973,20 +1132,33 @@ export default function Home(){
                   </div>
                   <span className="arrow">›</span>
                 </div>)
-              ):shown.slice(0,visible).map((a,i)=><div className={`resultcard ${selected===a?'active':''}`} key={`${a.packageName}-${i}`} onClick={()=>pickApp(a)}>
-                <div className="appicon">{isImg(a.icon)?<img src={a.icon} alt="" loading="lazy"/>:a.name.slice(0,1).toUpperCase()}</div>
-                <div className="resultmeta">
-                  <strong>{cleanTitle(a.name)}</strong>
-                  <small>{a.packageName}</small>
-                  <div className="badges">
-                    <span className="badge">{a.version==='—'?'Latest':a.version}</span>
-                    <span className="badge">Android</span>
-                    <span className="badge srcbadge">{a.source}</span>
-                    {a.download&&<span className="badge dl">APK</span>}
+              ):shown.slice(0,visible).map((a,i)=>{
+                const isSaved = watchlist.some(w=>w.pkg===a.packageName);
+                return <div className={`resultcard ${selected===a?'active':''}`} key={`${a.packageName}-${i}`} onClick={()=>pickApp(a)}>
+                  <div className="appicon">{isImg(a.icon)?<img src={a.icon} alt="" loading="lazy"/>:a.name.slice(0,1).toUpperCase()}</div>
+                  <div className="resultmeta">
+                    <strong>{cleanTitle(a.name)}</strong>
+                    <small>{a.packageName}</small>
+                    <div className="badges">
+                      <span className="badge">{a.version==='—'?'Latest':a.version}</span>
+                      <span className="badge">Android</span>
+                      <span className="badge srcbadge">{a.source}</span>
+                      {a.download&&<span className="badge dl">APK</span>}
+                    </div>
                   </div>
-                </div>
-                <span className="arrow">›</span>
-              </div>)}
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <button
+                      className="mini"
+                      onClick={e=>toggleWatchlistCard(a,e)}
+                      title={isSaved?'Remove from Watchlist':'Save to Watchlist'}
+                      style={{background:'transparent',border:'none',cursor:'pointer',padding:4}}
+                    >
+                      {isSaved?<IconBookmarkFilled size={15} color="#38bdf8"/>:<IconBookmark size={15}/>}
+                    </button>
+                    <span className="arrow">›</span>
+                  </div>
+                </div>;
+              })}
 
               {hasMore&&<button className="loadmore" onClick={()=>setVisible(v=>v+PAGE_SIZE)} disabled={loading||browseLoading}>
                 {t('loadMore')} · {Math.min(visible,listLen)}/{listLen}
