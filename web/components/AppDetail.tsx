@@ -3,6 +3,7 @@ import {useEffect,useState,useRef,useCallback} from 'react';
 import {useUI} from './Providers';
 import {downloadWithProgress,type Progress} from '../lib/download';
 import type {App,AppDetail,Version} from '../lib/types';
+import {IconStar,IconShield,IconGooglePlay,IconFDroid,IconApkMirror,IconAptoide,IconApkCombo,IconTapTap,IconWrench} from './Icons';
 
 const isImg=(s?:string)=>!!s&&/^https?:\/\//.test(s);
 
@@ -142,8 +143,8 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       <div className="detailmain">
         <div className="detailtitle">
           <h2>{app.name}</h2>
-          <span className="badge">☁ Android</span>
-          {showDownload&&<span className="badge dl">✓ {t('directDownload')}</span>}
+          <span className="badge">Android</span>
+          {showDownload&&<span className="badge dl">{t('directDownload')}</span>}
         </div>
 
         <div className="package" title={app.packageName}>
@@ -162,8 +163,8 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
     {/* Google Play Style Key Stats Row */}
     <div className="store-stats-row">
       <div className="stat-item">
-        <div className="stat-val">
-          <span style={{color:'var(--amber)'}}>★</span>
+        <div className="stat-val" style={{display:'inline-flex',alignItems:'center',gap:4}}>
+          <IconStar size={14} color="var(--amber)"/>
           <span>{detail?.rating?detail.rating.toFixed(1):'4.5'}</span>
         </div>
         <div className="stat-lbl">{t('rating')}</div>
@@ -181,8 +182,9 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         <div className="stat-lbl">Size</div>
       </div>
       <div className="stat-item">
-        <div className="stat-val" style={{color:'var(--green)'}}>
-          🛡 {rank||'Safe'}
+        <div className="stat-val" style={{color:'var(--green)',display:'inline-flex',alignItems:'center',gap:4}}>
+          <IconShield size={14} color="var(--green)"/>
+          <span>{rank||'Safe'}</span>
         </div>
         <div className="stat-lbl">{store||app.source}</div>
       </div>
@@ -212,7 +214,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       </button>}
 
       {pkgOK&&<a className="actionchip" href={`https://f-droid.org/en/packages/${encodeURIComponent(app.packageName)}/`} target="_blank" rel="noreferrer" title="Open on F-Droid">
-        🤖 F-Droid
+        <IconFDroid size={14}/> F-Droid
       </a>}
 
       {pkgOK&&<button className="actionchip" onClick={()=>copy(origin+appPage,'link')} title={t('shareLink')}>
@@ -244,22 +246,22 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       <div className="store-mirrors-bar" style={{margin:'14px 0 16px',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
         <span style={{fontSize:11.5,fontWeight:750,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.6,marginRight:2}}>Available on:</span>
         <a className="actionchip" href={`https://play.google.com/store/apps/details?id=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="Google Play Store">
-          ▶ Google Play
+          <IconGooglePlay size={14}/> Google Play
         </a>
         <a className="actionchip" href={`https://f-droid.org/en/packages/${encodeURIComponent(app.packageName)}/`} target="_blank" rel="noreferrer" title="F-Droid Open Source Repository" style={{borderColor:'rgba(16, 185, 129, 0.4)',color:'var(--green)'}}>
-          🤖 F-Droid
+          <IconFDroid size={14}/> F-Droid
         </a>
         <a className="actionchip" href={`https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="APKMirror Verified Releases">
-          🔍 APKMirror
+          <IconApkMirror size={14}/> APKMirror
         </a>
         <a className="actionchip" href={`https://en.aptoide.com/app/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="Aptoide App Store">
-          📦 Aptoide
+          <IconAptoide size={14}/> Aptoide
         </a>
         <a className="actionchip" href={`https://apkcombo.com/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="APKCombo Archive">
-          ☁ APKCombo
+          <IconApkCombo size={14}/> APKCombo
         </a>
         <a className="actionchip" href={`https://www.taptap.io/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" title="TapTap Games & Apps">
-          🎮 TapTap
+          <IconTapTap size={14}/> TapTap
         </a>
       </div>
     )}
@@ -288,7 +290,10 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         role="tab"
         aria-selected={activeTab==='security'}
       >
-        🛡 {t('tabSecurity')}
+        <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+          <IconShield size={14}/>
+          <span>{t('tabSecurity')}</span>
+        </span>
       </button>
     </div>
 
@@ -314,11 +319,11 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
 
         <div className="aboutbox">
           {change&&<div style={{marginBottom:14}}>
-            <strong style={{color:'var(--text)',fontSize:14}}>🚀 {t('whatsNew')}</strong>
+            <strong style={{color:'var(--text)',fontSize:14}}>{t('whatsNew')}</strong>
             <p>{change.slice(0,800)}</p>
           </div>}
 
-          <strong style={{color:'var(--text)',fontSize:14}}>📱 {t('description')}</strong>
+          <strong style={{color:'var(--text)',fontSize:14}}>{t('description')}</strong>
           <p>{desc?desc.slice(0,900)+(desc.length>900?'…':''):'Fast and secure Android application build discoverable via APKScope.'}</p>
 
           <div className="metagrid">
@@ -326,8 +331,8 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
             {detail?.updated&&<span><b>{t('updated')}:</b> {detail.updated.slice(0,10)}</span>}
             {detail?.category&&<span><b>{t('category')}:</b> {detail.category}</span>}
             {store&&<span><b>{t('store')}:</b> {store}</span>}
-            {pkgOK&&<span><b>F-Droid:</b> <a href={`https://f-droid.org/en/packages/${encodeURIComponent(app.packageName)}/`} target="_blank" rel="noreferrer" style={{color:'var(--accent)',textDecoration:'underline'}}>Package Repo ↗</a></span>}
-            {pkgOK&&<span><b>APKMirror:</b> <a href={`https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" style={{color:'var(--accent)',textDecoration:'underline'}}>Release Archive ↗</a></span>}
+            {pkgOK&&<span><b>F-Droid:</b> <a href={`https://f-droid.org/en/packages/${encodeURIComponent(app.packageName)}/`} target="_blank" rel="noreferrer" style={{color:'var(--accent)',textDecoration:'underline'}}>f-droid.org</a></span>}
+            {pkgOK&&<span><b>APKMirror:</b> <a href={`https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer" style={{color:'var(--accent)',textDecoration:'underline'}}>apkmirror.com</a></span>}
           </div>
         </div>
       </div>
@@ -346,7 +351,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         <div className="version">
           <div className="versionhead">
             <strong>{versionLabel}</strong>
-            <span className="latest">{verLoading?t('loadingVersions'):versions.length>1?`★ ${versions.length} ${t('nVersions')}`:versions.length===1?`★ 1 ${t('nVersion')}`:`★ ${t('latest')}`}</span>
+            <span className="latest">{verLoading?t('loadingVersions'):versions.length>1?`${versions.length} ${t('nVersions')}`:versions.length===1?`1 ${t('nVersion')}`:t('latest')}</span>
             <span className="source">{store||app.source}</span>
           </div>
           <div className="variant head">
@@ -363,9 +368,9 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
               <span className="type">{v.src}</span>
               {v.download
                 ? <button className="download dl" disabled={!!prog} onClick={()=>start(v.download!,v.version)}>
-                    {busy?`${pct}%`:'↓ '+t('colDownload')}
+                    {busy?`${pct}%`:t('colDownload')}
                   </button>
-                : <a className="download" href={v.page||app.sourcePage} target="_blank" rel="noreferrer">↗ {t('open')}</a>}
+                : <a className="download" href={v.page||app.sourcePage} target="_blank" rel="noreferrer">{t('open')}</a>}
             </div>;
           })}
           {!verLoading&&!versions.length&&<div className="variant">
@@ -376,7 +381,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
             <span className="type">{app.source}</span>
             {app.download
               ? <button className="download dl" disabled={!!prog} onClick={()=>start(app.download!,app.version)}>{t('colDownload')}</button>
-              : <a className="download" href={app.sourcePage} target="_blank" rel="noreferrer">↗</a>}
+              : <a className="download" href={app.sourcePage} target="_blank" rel="noreferrer">{t('open')}</a>}
           </div>}
         </div>
 
@@ -388,22 +393,22 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
           </div>
           <div style={{padding:14,display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
             <a className="actionchip" href={`https://play.google.com/store/apps/details?id=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
-              ▶ Google Play
+              <IconGooglePlay size={14}/> Google Play
             </a>
             <a className="actionchip" href={`https://f-droid.org/en/packages/${encodeURIComponent(app.packageName)}/`} target="_blank" rel="noreferrer">
-              🤖 F-Droid
+              <IconFDroid size={14}/> F-Droid
             </a>
             <a className="actionchip" href={`https://www.apkmirror.com/?post_type=app_release&searchtype=apk&s=${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
-              🔍 APKMirror
+              <IconApkMirror size={14}/> APKMirror
             </a>
             <a className="actionchip" href={`https://en.aptoide.com/app/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
-              📦 Aptoide
+              <IconAptoide size={14}/> Aptoide
             </a>
             <a className="actionchip" href={`https://apkcombo.com/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
-              ☁ APKCombo
+              <IconApkCombo size={14}/> APKCombo
             </a>
             <a className="actionchip" href={`https://www.taptap.io/search/${encodeURIComponent(app.packageName)}`} target="_blank" rel="noreferrer">
-              🎮 TapTap
+              <IconTapTap size={14}/> TapTap
             </a>
           </div>
         </div>
@@ -415,7 +420,10 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
     {/* TAB 3: Security & Provenance */}
     {activeTab==='security'&&(
       <div className="security-card">
-        <h4>🛡 {t('securityAudit')}</h4>
+        <h4 style={{display:'flex',alignItems:'center',gap:8}}>
+          <IconShield size={16} color="var(--blue)"/>
+          <span>{t('securityAudit')}</span>
+        </h4>
         <div className="hash-row">
           <span>Package Name</span>
           <span className="hash-val">{app.packageName}</span>
@@ -428,7 +436,7 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
           <div className="hash-row">
             <span>VirusTotal Scanner</span>
             <a href={vtLink(md5)} target="_blank" rel="noreferrer" className="primary" style={{padding:'4px 12px',fontSize:12,borderRadius:8}}>
-              {t('virusTotal')} ↗
+              {t('virusTotal')}
             </a>
           </div>
         )}
@@ -438,13 +446,17 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         </div>
         <div className="hash-row">
           <span>{t('trust')} Classification</span>
-          <span style={{color:'var(--green)',fontWeight:700}}>✓ {rank||'Community verified'}</span>
+          <span style={{color:'var(--green)',fontWeight:700,display:'inline-flex',alignItems:'center',gap:4}}>
+            <IconShield size={13} color="var(--green)"/>
+            <span>Verified ({rank||'Community verified'})</span>
+          </span>
         </div>
 
         {/* Live Checksum Verifier Tool */}
         <div className="hash-checker">
-          <label style={{fontSize:13,fontWeight:750,display:'block'}}>
-            🔍 {t('verifyHash')}
+          <label style={{fontSize:13,fontWeight:750,display:'flex',alignItems:'center',gap:6}}>
+            <IconWrench size={14}/>
+            <span>{t('verifyHash')}</span>
           </label>
           <div className="hash-input-wrap">
             <input
@@ -467,7 +479,12 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
       <div className="modalbox" onClick={e=>e.stopPropagation()}>
         <div className="modalhead">
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <span>📱</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
             <strong>{t('qrTitle')}</strong>
           </div>
           <button className="mini" onClick={()=>setQrOpen(false)}>✕</button>

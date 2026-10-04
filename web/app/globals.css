@@ -147,7 +147,8 @@ img{color:transparent}
 .spotlight-sub{font-size:14.5px;color:var(--muted);line-height:1.55;margin:0}
 
 /* Spotlight Featured App Cards */
-.spotlight-cards{display:flex;gap:12px;overflow-x:auto;padding:4px 0}
+.spotlight-cards{display:flex;gap:12px;overflow-x:auto;padding:4px 0;scrollbar-width:none}
+.spotlight-cards::-webkit-scrollbar{display:none}
 .spotlight-app{
   background:var(--panel);border:1px solid var(--line);border-radius:16px;
   padding:14px 16px;display:flex;align-items:center;gap:14px;
@@ -252,9 +253,10 @@ img{color:transparent}
 .section-sub{font-size:12.5px;color:var(--muted);margin-left:4px}
 
 /* Horizontal Apps Rail */
-.apps-rail{display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;scrollbar-width:thin}
+.apps-rail{display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none}
+.apps-rail::-webkit-scrollbar{display:none}
 .app-card-rail{
-  flex:0 0 auto;width:145px;background:var(--panel);border:1px solid var(--line);
+  flex:0 0 auto;width:150px;background:var(--panel);border:1px solid var(--line);
   border-radius:18px;padding:14px 10px;display:flex;flex-direction:column;
   align-items:center;text-align:center;gap:8px;cursor:pointer;
   box-shadow:var(--shadow-sm);transition:all .18s ease;
@@ -266,7 +268,9 @@ img{color:transparent}
 }
 .app-icon-rail img{width:100%;height:100%;object-fit:cover}
 .app-name-rail{
-  font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:12.5px;font-weight:700;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;height:32px;line-height:1.25;
   width:100%;max-width:100%;
 }
 .app-rating-rail{font-size:11.5px;color:var(--amber-text);font-weight:700}
@@ -572,3 +576,170 @@ img{color:transparent}
   .stat-item:nth-child(3),.stat-item:nth-child(4){border-bottom:none}
   .shotstrip img{height:150px}
 }
+
+/* ========================================================
+   DIRECTORY & WORKBENCH VIEWS (SOURCES & TOOLS)
+   ======================================================== */
+.content-sources, .content-tools {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 3.5vw 80px;
+}
+.directory-header {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 36px;
+}
+.directory-title {
+  font-size: 32px;
+  font-weight: 850;
+  letter-spacing: -0.6px;
+  margin: 0 0 10px;
+}
+.directory-sub {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.sources-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 20px;
+}
+.source-dir-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+.source-dir-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--blue);
+  box-shadow: var(--shadow);
+}
+.source-dir-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.source-dir-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-icon);
+  background: var(--panel2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+.source-dir-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+.source-dir-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--blue);
+  margin-top: 3px;
+}
+.source-dir-desc {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0 0 16px;
+  flex: 1;
+}
+.source-dir-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--chip-text);
+  background: var(--panel2);
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+.source-dir-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.source-dir-actions button, .source-dir-actions a {
+  flex: 1;
+  text-align: center;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  border-radius: 10px;
+}
+
+.tools-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+}
+.tool-box-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.tool-box-card h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tool-text-input {
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  outline: none;
+}
+.tool-text-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.chart-rank.rank-1 { color: #f59e0b; font-weight: 900; }
+.chart-rank.rank-2 { color: #94a3b8; font-weight: 850; }
+.chart-rank.rank-3 { color: #d97706; font-weight: 850; }
+
+/* Universal Modern Subtle Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+

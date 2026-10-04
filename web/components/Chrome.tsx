@@ -1,31 +1,44 @@
 'use client';
 import {useState,useEffect} from 'react';
 import {useUI} from './Providers';
+import {IconSun,IconMoon,IconShield,IconWrench} from './Icons';
 
 export function TopBar(){
   const {t,theme,toggleTheme,lang,setLang}=useUI();
   const [aboutOpen,setAboutOpen]=useState(false);
-  const [activeHash,setActiveHash]=useState('');
+  const [activeHash,setActiveHash]=useState('apps');
 
   useEffect(()=>{
-    const handleHash=()=>setActiveHash(window.location.hash);
+    const handleHash=()=>{
+      const h=window.location.hash.replace('#','');
+      setActiveHash(h||'apps');
+    };
     handleHash();
     window.addEventListener('hashchange',handleHash);
-    return ()=>window.removeEventListener('hashchange',handleHash);
+    const onTab=(e:Event)=>{
+      const custom=e as CustomEvent<string>;
+      if(custom.detail)setActiveHash(custom.detail);
+    };
+    window.addEventListener('apkscope:tab',onTab);
+    return ()=>{
+      window.removeEventListener('hashchange',handleHash);
+      window.removeEventListener('apkscope:tab',onTab);
+    };
   },[]);
 
-  function scrollTo(id:string){
+  function switchNav(id:string){
+    setActiveHash(id);
+    try{history.pushState(null,'',`#${id}`)}catch{}
+    window.dispatchEvent(new CustomEvent('apkscope:tab',{detail:id}));
     const el=document.getElementById(id);
     if(el){
       el.scrollIntoView({behavior:'smooth'});
-      try{history.replaceState(null,'',`#${id}`)}catch{}
-      setActiveHash(`#${id}`);
     }
   }
 
   return <>
     <header className="nav">
-      <a href="/" className="logo">
+      <a href="/#apps" className="logo" onClick={e=>{e.preventDefault();switchNav('apps')}}>
         <div className="logo-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M4 4.5C4 3.67 4.9 3.17 5.6 3.6L19.4 11.1C20.1 11.5 20.1 12.5 19.4 12.9L5.6 20.4C4.9 20.8 4 20.3 4 19.5V4.5Z" fill="url(#storeGrad)"/>
@@ -45,10 +58,9 @@ export function TopBar(){
       </a>
 
       <nav className="navlinks">
-        <a
-          href="/#apps"
-          className={`navlink ${activeHash==='#apps'||!activeHash?'active':''}`}
-          onClick={e=>{e.preventDefault();scrollTo('apps')}}
+        <button
+          className={`navlink ${activeHash==='apps'?'active':''}`}
+          onClick={()=>switchNav('apps')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
@@ -57,28 +69,24 @@ export function TopBar(){
             <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
           </svg>
           {t('apps')}
-        </a>
-        <a
-          href="/#sources"
-          className={`navlink ${activeHash==='#sources'?'active':''}`}
-          onClick={e=>{e.preventDefault();scrollTo('sources')}}
+        </button>
+        <button
+          className={`navlink ${activeHash==='sources'?'active':''}`}
+          onClick={()=>switchNav('sources')}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <circle cx="12" cy="12" r="10"></circle>
             <polygon points="12 6 12 12 16 14"></polygon>
           </svg>
           {t('sources')}
-        </a>
-        <a
-          href="/#tools"
-          className={`navlink ${activeHash==='#tools'?'active':''}`}
-          onClick={e=>{e.preventDefault();scrollTo('tools')}}
+        </button>
+        <button
+          className={`navlink ${activeHash==='tools'?'active':''}`}
+          onClick={()=>switchNav('tools')}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-          </svg>
+          <IconWrench size={15}/>
           {t('tools')}
-        </a>
+        </button>
         <button
           className="navlink navbtn"
           onClick={()=>setAboutOpen(true)}
@@ -97,7 +105,7 @@ export function TopBar(){
           {lang==='en'?'EN':'हिं'}
         </button>
         <button className="ghostbtn" onClick={toggleTheme} title={t('theme')} aria-label={t('theme')}>
-          {theme==='dark'?'☀':'☾'}
+          {theme==='dark'?<IconSun size={15}/>:<IconMoon size={15}/>}
         </button>
         <span className="pill">
           <span className="pill-dot"></span>
@@ -111,7 +119,7 @@ export function TopBar(){
         <div className="modalbox" onClick={e=>e.stopPropagation()} style={{textAlign:'left'}}>
           <div className="modalhead">
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:20}}>🛡</span>
+              <IconShield size={22} color="var(--blue)"/>
               <strong>{t('aboutTitle')}</strong>
             </div>
             <button className="mini" onClick={()=>setAboutOpen(false)}>✕</button>
@@ -120,9 +128,9 @@ export function TopBar(){
             {t('aboutDescription')}
           </p>
           <div style={{background:'var(--panel2)',padding:14,borderRadius:12,border:'1px solid var(--line)',fontSize:12.5,lineHeight:1.6}}>
-            <div><b>🔍 Multi-Store Discovery:</b> Scrapes APKMirror, Google Play, F-Droid, Aptoide, APKCombo, and TapTap in parallel.</div>
-            <div style={{marginTop:6}}><b>⚡ Direct Stream:</b> Downloads stream through an allowlisted Cloudflare Worker proxy directly from the publisher.</div>
-            <div style={{marginTop:6}}><b>🔒 Zero Account:</b> No login, no telemetry, no tracking, completely private.</div>
+            <div><b>Multi-Store Discovery:</b> Scrapes APKMirror, Google Play, F-Droid, Aptoide, APKCombo, and TapTap in parallel.</div>
+            <div style={{marginTop:6}}><b>Direct Stream:</b> Downloads stream through an allowlisted Cloudflare Worker proxy directly from the publisher.</div>
+            <div style={{marginTop:6}}><b>Zero Account:</b> No login, no telemetry, no tracking, completely private.</div>
           </div>
           <div style={{marginTop:18,textAlign:'right'}}>
             <button className="primary" onClick={()=>setAboutOpen(false)}>{t('close')}</button>
