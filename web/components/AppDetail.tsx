@@ -8,6 +8,7 @@ import {
   IconWrench,IconGithub,IconIzzy,IconUptodown,IconTerminal,IconBookmark,IconBookmarkFilled,
   IconCopy,IconCheck,IconAlertTriangle,IconExternalLink,IconFileText,IconLayers,IconLink,IconAndroid
 } from './Icons';
+import {computeSha256,computeMd5,computeSha1} from '../lib/client-hash';
 
 const isImg=(s?:string)=>!!s&&/^(https?:\/\/|data:image\/)/.test(s);
 
@@ -87,11 +88,39 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
   const [isWatched,setIsWatched]=useState(false);
   const [splitModalOpen,setSplitModalOpen]=useState(false);
   const [permFilter,setPermFilter]=useState<RiskLevel>('ALL');
+  const [localApk,setLocalApk]=useState<{name:string;size:number;sha256:string;md5:string;sha1:string}|null>(null);
+  const [isHashing,setIsHashing]=useState(false);
+  const fileInputRef=useRef<HTMLInputElement>(null);
 
   const abort=useRef<AbortController|null>(null);
   const pkgOK=/^[a-zA-Z]\w*(\.\w+)+$/.test(app.packageName);
   const appPage=pkgOK?`/app/${app.packageName}?n=${encodeURIComponent(app.name)}`:'';
   const origin=typeof window!=='undefined'?window.location.origin:'';
+
+  const handleApkFile=async(file:File)=>{
+    if(!file)return;
+    setIsHashing(true);
+    try{
+      const buffer=await file.arrayBuffer();
+      const [sha256,sha1]=await Promise.all([
+        computeSha256(buffer),
+        computeSha1(buffer)
+      ]);
+      const md5Calc=computeMd5(buffer);
+      setLocalApk({
+        name:file.name,
+        size:file.size,
+        sha256,
+        md5:md5Calc,
+        sha1
+      });
+      setUserHash(md5Calc);
+    }catch{
+      setErr('Error calculating cryptographic hashes on selected file');
+    }finally{
+      setIsHashing(false);
+    }
+  };
 
   // Check and sync watchlist
   const checkWatchlist = useCallback(()=>{
@@ -663,26 +692,75 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
         <div className="security-card">
           <h4 style={{display:'flex',alignItems:'center',gap:8,margin:'0 0 10px'}}>
             <IconTerminal size={16} color="var(--blue)"/>
-            <span>1-Click ADB Install & Shell Commands</span>
+            <span>Pentest &amp; Reverse Engineering CLI Snippets</span>
           </h4>
           <p style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 10px'}}>
-            Quick terminal commands for connected emulators (AVD/Genymotion) and USB-debugging rooted test devices.
+            Ready-to-run terminal snippets for ADB, Frida instrumentation, JADX decompilation, and Apktool disassembly.
           </p>
 
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))',gap:8}}>
             {/* Quick ADB Install */}
             <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>ADB Install Command</span>
-                <button
-                  className="mini"
-                  onClick={()=>copy(`adb install -r ${app.packageName}.apk`,'cmd-adb')}
-                >
+                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>ADB Install</span>
+                <button className="mini" onClick={()=>copy(`adb install -r ${app.packageName}.apk`,'cmd-adb')}>
                   {copied==='cmd-adb'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
                 </button>
               </div>
-              <code style={{fontSize:12,color:'var(--green)',fontFamily:'monospace'}}>
+              <code style={{fontSize:11.5,color:'var(--green)',fontFamily:'monospace',display:'block'}}>
                 adb install -r {app.packageName}.apk
+              </code>
+            </div>
+
+            {/* Frida Hooking */}
+            <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>Frida Spawn &amp; Hook</span>
+                <button className="mini" onClick={()=>copy(`frida -U -f ${app.packageName} -l hook.js`,'cmd-frida')}>
+                  {copied==='cmd-frida'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                </button>
+              </div>
+              <code style={{fontSize:11.5,color:'var(--blue)',fontFamily:'monospace',display:'block'}}>
+                frida -U -f {app.packageName} -l hook.js
+              </code>
+            </div>
+
+            {/* JADX Decompile */}
+            <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>JADX Decompile</span>
+                <button className="mini" onClick={()=>copy(`jadx -d out/ ${app.packageName}.apk`,'cmd-jadx')}>
+                  {copied==='cmd-jadx'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                </button>
+              </div>
+              <code style={{fontSize:11.5,color:'var(--accent)',fontFamily:'monospace',display:'block'}}>
+                jadx -d out/ {app.packageName}.apk
+              </code>
+            </div>
+
+            {/* Apktool Disassemble */}
+            <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>Apktool Decode</span>
+                <button className="mini" onClick={()=>copy(`apktool d ${app.packageName}.apk -o ./decompiled/`,'cmd-apktool')}>
+                  {copied==='cmd-apktool'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                </button>
+              </div>
+              <code style={{fontSize:11.5,color:'#f59e0b',fontFamily:'monospace',display:'block'}}>
+                apktool d {app.packageName}.apk -o ./decompiled/
+              </code>
+            </div>
+
+            {/* Logcat Monitor */}
+            <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>Logcat Filter</span>
+                <button className="mini" onClick={()=>copy(`adb logcat | grep -i "${app.packageName}"`,'cmd-logcat')}>
+                  {copied==='cmd-logcat'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
+                </button>
+              </div>
+              <code style={{fontSize:11.5,color:'var(--text)',fontFamily:'monospace',display:'block'}}>
+                adb logcat | grep -i &quot;{app.packageName}&quot;
               </code>
             </div>
 
@@ -690,17 +768,147 @@ export function AppDetailPanel({app,versions,verLoading,detail,detailLoading,onB
             {downloadUrl&&(
               <div style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                  <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>One-liner Terminal Fetch & Install</span>
-                  <button
-                    className="mini"
-                    onClick={()=>copy(`curl -sL "${downloadUrl}" -o ${app.packageName}.apk && adb install -r ${app.packageName}.apk`,'cmd-curl')}
-                  >
+                  <span style={{fontSize:11,fontWeight:700,color:'var(--muted)',textTransform:'uppercase'}}>Fetch &amp; ADB Install</span>
+                  <button className="mini" onClick={()=>copy(`curl -sL "${downloadUrl}" -o ${app.packageName}.apk && adb install -r ${app.packageName}.apk`,'cmd-curl')}>
                     {copied==='cmd-curl'?<IconCheck size={12} color="var(--green)"/>:<IconCopy size={12}/>}
                   </button>
                 </div>
-                <code style={{fontSize:11.5,color:'var(--accent)',fontFamily:'monospace',wordBreak:'break-all'}}>
-                  curl -sL &quot;{downloadUrl.slice(0,60)}...&quot; -o {app.packageName}.apk &amp;&amp; adb install -r {app.packageName}.apk
+                <code style={{fontSize:11,color:'var(--accent)',fontFamily:'monospace',wordBreak:'break-all',display:'block'}}>
+                  curl -sL &quot;{downloadUrl.slice(0,50)}...&quot; -o {app.packageName}.apk &amp;&amp; adb install -r {app.packageName}.apk
                 </code>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* CVE & Vulnerability Intelligence */}
+        <div className="security-card">
+          <h4 style={{display:'flex',alignItems:'center',gap:8,margin:'0 0 10px'}}>
+            <IconShield size={16} color="var(--blue)"/>
+            <span>CVE &amp; Vulnerability Intelligence</span>
+          </h4>
+          <p style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 10px'}}>
+            Cross-reference package identifiers and vendor history across authoritative vulnerability disclosure databases.
+          </p>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))',gap:8}}>
+            <a
+              href={`https://nvd.nist.gov/vuln/search/results?query=${encodeURIComponent(app.packageName)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px',textDecoration:'none',color:'inherit'}}
+            >
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <strong style={{fontSize:12.5,color:'var(--text)'}}>NIST NVD Search</strong>
+                <IconExternalLink size={12} color="var(--muted)"/>
+              </div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:4}}>Query National Vulnerability Database</div>
+            </a>
+            <a
+              href={`https://www.cvedetails.com/google-search-results.php?q=${encodeURIComponent(app.packageName)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px',textDecoration:'none',color:'inherit'}}
+            >
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <strong style={{fontSize:12.5,color:'var(--text)'}}>CVE Details</strong>
+                <IconExternalLink size={12} color="var(--muted)"/>
+              </div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:4}}>Historical CVSS ratings &amp; exploits</div>
+            </a>
+            <a
+              href="https://source.android.com/docs/security/bulletin"
+              target="_blank"
+              rel="noreferrer"
+              style={{background:'var(--panel2)',border:'1px solid var(--line)',borderRadius:10,padding:'10px 12px',textDecoration:'none',color:'inherit'}}
+            >
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <strong style={{fontSize:12.5,color:'var(--text)'}}>Android Bulletins</strong>
+                <IconExternalLink size={12} color="var(--muted)"/>
+              </div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:4}}>Official monthly framework patches</div>
+            </a>
+          </div>
+        </div>
+
+        {/* In-Browser APK Binary & Hash Inspector Dropzone */}
+        <div className="security-card">
+          <h4 style={{display:'flex',alignItems:'center',gap:8,margin:'0 0 10px'}}>
+            <IconFileText size={16} color="var(--green)"/>
+            <span>In-Browser APK Binary &amp; Hash Inspector (Zero Upload)</span>
+          </h4>
+          <p style={{fontSize:12.5,color:'var(--muted)',margin:'0 0 10px'}}>
+            Drop any downloaded or local <code>.apk</code> file below. Hashes are computed 100% in your browser using native Web Crypto — zero bytes are ever uploaded.
+          </p>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".apk,.apkm,.xapk"
+            style={{display:'none'}}
+            onChange={e=>{
+              const f=e.target.files?.[0];
+              if(f)handleApkFile(f);
+            }}
+          />
+
+          <div
+            style={{
+              border:'2px dashed var(--line)',
+              borderRadius:12,
+              padding:'18px 20px',
+              textAlign:'center',
+              cursor:'pointer',
+              background:isHashing?'rgba(56,189,248,0.06)':'var(--panel2)',
+              transition:'all 0.2s'
+            }}
+            onClick={()=>fileInputRef.current?.click()}
+            onDragOver={e=>{e.preventDefault();e.stopPropagation()}}
+            onDrop={e=>{
+              e.preventDefault();
+              e.stopPropagation();
+              const f=e.dataTransfer.files?.[0];
+              if(f)handleApkFile(f);
+            }}
+          >
+            {isHashing ? (
+              <div style={{fontSize:13,color:'var(--blue)',fontWeight:700}}>Computing cryptographic hashes (SHA-256, MD5)...</div>
+            ) : localApk ? (
+              <div style={{textAlign:'left'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                  <strong style={{fontSize:13,color:'var(--text)'}}>{localApk.name} ({fmtSize(localApk.size)})</strong>
+                  <button className="mini" onClick={e=>{e.stopPropagation();fileInputRef.current?.click()}}>Select another</button>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:4,fontSize:11.5,fontFamily:'monospace'}}>
+                  <div><span style={{color:'var(--muted)'}}>SHA-256: </span><span style={{color:'var(--green)'}}>{localApk.sha256}</span></div>
+                  <div><span style={{color:'var(--muted)'}}>MD5: </span><span style={{color:'var(--blue)'}}>{localApk.md5}</span></div>
+                  <div><span style={{color:'var(--muted)'}}>SHA-1: </span><span style={{color:'var(--text)'}}>{localApk.sha1}</span></div>
+                </div>
+                <div style={{marginTop:10,display:'flex',gap:8}}>
+                  <a
+                    href={`https://www.virustotal.com/gui/file/${localApk.sha256}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="primary"
+                    style={{padding:'4px 12px',fontSize:12,borderRadius:8,textDecoration:'none'}}
+                    onClick={e=>e.stopPropagation()}
+                  >
+                    Check SHA-256 on VirusTotal
+                  </a>
+                  {md5&&localApk.md5.toLowerCase()===md5.toLowerCase()&&(
+                    <span style={{fontSize:12,color:'var(--green)',fontWeight:700,display:'flex',alignItems:'center',gap:4}}>
+                      <IconCheck size={14} color="var(--green)"/> Exact match with upstream MD5!
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}}>
+                  Click or drag and drop local .apk file here
+                </div>
+                <div style={{fontSize:11.5,color:'var(--muted)'}}>
+                  Instant SHA-256, SHA-1, and MD5 computation without sending files over the network.
+                </div>
               </div>
             )}
           </div>

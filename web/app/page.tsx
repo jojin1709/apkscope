@@ -139,6 +139,7 @@ export default function Home(){
   const [openSort,setOpenSort]=useState(true);
 
   const searchWrapRef=useRef<HTMLDivElement|null>(null);
+  const inputRef=useRef<HTMLInputElement|null>(null);
   const sugTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const resolvedRef=useRef<Set<string>>(new Set());
 
@@ -191,7 +192,6 @@ export default function Home(){
         setNavTab(custom.detail as 'apps'|'sources'|'tools');
       }
     };
-    window.addEventListener('apkscope:tab',onNav);
     return ()=>{
       window.removeEventListener('hashchange',syncHash);
       window.removeEventListener('apkscope:tab',onNav);
@@ -199,6 +199,26 @@ export default function Home(){
       window.removeEventListener('apkscope:recent-updated',loadRecent);
     };
   },[loadWatchlist]);
+
+  // Global hotkeys: '/' to focus search, 'Escape' to dismiss modals/drawers
+  useEffect(()=>{
+    const onKeyDown=(e:KeyboardEvent)=>{
+      const tag=(document.activeElement?.tagName||'').toUpperCase();
+      if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(tag)){
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }else if(e.key==='Escape'){
+        if(selected){
+          setSelected(null);
+        }else if(sugOpen){
+          setSugOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown',onKeyDown);
+    return ()=>window.removeEventListener('keydown',onKeyDown);
+  },[selected,sugOpen]);
 
 
   useEffect(()=>{
@@ -869,6 +889,7 @@ export default function Home(){
                 </svg>
               </div>
               <input
+                ref={inputRef}
                 value={q}
                 onChange={e=>onQuery(e.target.value)}
                 onFocus={()=>{if(sugs.length)setSugOpen(true)}}
@@ -892,6 +913,7 @@ export default function Home(){
                 placeholder={t('placeholder')}
                 aria-label={t('placeholder')}
               />
+              {!q&&<span className="hotkey-badge" title="Press / anywhere to search" onClick={()=>inputRef.current?.focus()}>/</span>}
               {q&&<button className="search-clear" onClick={clearQuery} title={t('clearSearch')}>✕</button>}
               <button className="search-btn" id="searchBtn" onClick={search}>
                 {loading?t('searching'):t('searchBtn')}

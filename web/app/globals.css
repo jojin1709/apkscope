@@ -199,6 +199,14 @@ img{color:transparent}
   display:inline-flex;align-items:center;gap:6px;transition:background-color .15s ease;
 }
 .search-btn:hover{background:var(--blue2)}
+.hotkey-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+  color:var(--muted);font-family:monospace;font-size:11px;font-weight:700;
+  padding:2px 7px;user-select:none;cursor:pointer;transition:all .15s ease;
+}
+.store-search:focus-within .hotkey-badge{display:none}
+.hotkey-badge:hover{color:var(--text);border-color:var(--blue)}
 
 /* Suggestion Dropdown */
 .suglist{
