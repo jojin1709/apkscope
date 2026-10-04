@@ -38,6 +38,7 @@ export default function Home(){
   const [selected,setSelected]=useState<App|null>(null);
   const [loading,setLoading]=useState(false);
   const [checked,setChecked]=useState<Record<string,boolean>>(()=>Object.fromEntries(SOURCE_LIST.map(s=>[s,true])));
+  const [directOnly,setDirectOnly]=useState(false);
   const [sort,setSort]=useState<Sort>('relevance');
   const [versions,setVersions]=useState<Version[]>([]);
   const [verLoading,setVerLoading]=useState(false);
@@ -46,6 +47,7 @@ export default function Home(){
   const [visible,setVisible]=useState(PAGE_SIZE);
   const [sugs,setSugs]=useState<Suggest[]>([]);
   const [sugOpen,setSugOpen]=useState(false);
+  const [sugIndex,setSugIndex]=useState(-1);
   const [cat,setCat]=useState('');
   const [catLabel,setCatLabel]=useState('');
   const [browse,setBrowse]=useState<BrowseItem[]>([]);
@@ -53,6 +55,13 @@ export default function Home(){
   const [trending,setTrending]=useState<BrowseItem[]>([]);
   const [recent,setRecent]=useState<Recent[]>([]);
   const [error,setError]=useState('');
+
+  // Accordion state
+  const [openSources,setOpenSources]=useState(true);
+  const [openPlatform,setOpenPlatform]=useState(true);
+  const [openSort,setOpenSort]=useState(true);
+
+  const searchWrapRef=useRef<HTMLDivElement|null>(null);
   const sugTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const resolvedRef=useRef<Set<string>>(new Set());
 
@@ -63,7 +72,18 @@ export default function Home(){
     }catch{}
   }
 
-  async function runSearch(value:string){
+  // Close suggestions when clicking outside
+  useEffect(()=>{
+    function onDocClick(e:MouseEvent){
+      if(searchWrapRef.current&&!searchWrapRef.current.contains(e.target as Node)){
+        setSugOpen(false);
+      }
+    }
+    document.addEventListener('mousedown',onDocClick);
+    return ()=>document.removeEventListener('mousedown',onDocClick);
+  },[]);
+
+  async function runSearch(value:string,selectedPkg?:string){
     const query=value.trim();
     if(!query)return;
     setLoading(true);
@@ -97,26 +117,40 @@ export default function Home(){
       }
       const found:App[]=apps||[];
       setResults(found);
-      if(found.length&&found[0].packageName!=='Search supported providers')setSelected(found[0]);
+      if(found.length&&found[0].packageName!=='Search supported providers'){
+        const match=selectedPkg?found.find(f=>f.packageName===selectedPkg):found[0];
+        setSelected(match||found[0]);
+      }
     }catch{
       setResults([]);
       setError(t('rateLimited'));
     }finally{
       setLoading(false);
-      try{history.replaceState(null,'',`?q=${encodeURIComponent(query)}`)}catch{}
+      try{
+        history.replaceState(null,'',`?q=${encodeURIComponent(query)}${selectedPkg?`&pkg=${encodeURIComponent(selectedPkg)}`:''}`);
+      }catch{}
     }
   }
 
   function search(){runSearch(q)}
 
+  function clearQuery(){
+    setQ('');
+    setSugs([]);
+    setSugOpen(false);
+    try{history.replaceState(null,'',location.pathname)}catch{}
+  }
+
   function choose(x:string){
     setQ(x);
     setSugOpen(false);
+    setSugIndex(-1);
     runSearch(x);
   }
 
   function onQuery(v:string){
     setQ(v);
+    setSugIndex(-1);
     if(sugTimer.current)clearTimeout(sugTimer.current);
     const trimmed=v.trim();
     if(trimmed.length<2){
@@ -132,7 +166,7 @@ export default function Home(){
         setSugs(Array.isArray(d.suggestions)?d.suggestions:[]);
         setSugOpen(true);
       }catch{}
-    },300);
+    },280);
   }
 
   async function openCat(k:string,label:string){
@@ -161,8 +195,23 @@ export default function Home(){
     }
   }
 
+  function pickApp(item:App){
+    setSelected(item);
+    try{
+      const u=new URL(window.location.href);
+      u.searchParams.set('pkg',item.packageName);
+      history.replaceState(null,'',u.toString());
+    }catch{}
+    // Mobile smooth scroll
+    if(typeof window!=='undefined'&&window.innerWidth<=780){
+      setTimeout(()=>{
+        document.getElementById('detailView')?.scrollIntoView({behavior:'smooth'});
+      },100);
+    }
+  }
+
   function pickBrowse(b:BrowseItem){
-    setSelected({
+    const app:App={
       name:b.name,
       packageName:b.packageName,
       version:'—',
@@ -171,14 +220,15 @@ export default function Home(){
       icon:b.icon,
       sourcePage:b.sourcePage,
       variants:[]
-    });
-    setDetail(null);
-    setVersions([]);
+    };
+    pickApp(app);
   }
 
   useEffect(()=>{
-    const p=new URLSearchParams(window.location.search).get('q');
-    if(p){setQ(p);runSearch(p)}
+    const sp=new URLSearchParams(window.location.search);
+    const p=sp.get('q');
+    const pkg=sp.get('pkg');
+    if(p){setQ(p);runSearch(p,pkg||undefined)}
     loadRecent();
     const updater=()=>loadRecent();
     window.addEventListener('apkscope:recent-updated',updater);
@@ -222,10 +272,19 @@ export default function Home(){
 
   const shown=useMemo(()=>{
     let list=results.filter(r=>r.source==='Provider search'||checked[r.source]!==false);
+    if(directOnly)list=list.filter(r=>!!r.download);
     if(sort==='name')list=[...list].sort((a,b)=>a.name.localeCompare(b.name));
     else if(sort==='version')list=[...list].sort((a,b)=>verKey(b.version).localeCompare(verKey(a.version)));
     return list;
-  },[results,checked,sort]);
+  },[results,checked,directOnly,sort]);
+
+  // Sync selected app when filters change
+  useEffect(()=>{
+    if(selected&&!cat&&shown.length>0){
+      const exists=shown.some(a=>a.packageName===selected.packageName);
+      if(!exists)setSelected(shown[0]);
+    }
+  },[shown,selected,cat]);
 
   const listLen=cat?browse.length:shown.length;
   const hasMore=listLen>visible;
@@ -246,13 +305,16 @@ export default function Home(){
         setResults(rs=>rs.map(item=>{
           const m=map[item.packageName];
           if(!m||!m.download)return item;
-          return{...item,download:m.download,
+          return{
+            ...item,
+            download:m.download,
             size:item.size||m.size||0,
             md5:item.md5||m.md5||'',
             signer:item.signer||m.signer||'',
             rank:item.rank||m.rank||'',
             store:item.store||m.store||'',
-            version:(!item.version||item.version==='—'||item.version==='See source')&&m.version?m.version:item.version};
+            version:(!item.version||item.version==='—'||item.version==='See source')&&m.version?m.version:item.version
+          };
         }));
       }catch{}
     },400);
@@ -267,27 +329,49 @@ export default function Home(){
       <div>
         <h1>{t('heroTitle')} <span>{t('heroTitleSpan')}</span></h1>
         <p>{t('heroSub')}</p>
-        <div className="searchwrap">
+        <div className="searchwrap" ref={searchWrapRef}>
           <div className="search">
-            <span style={{padding:'16px 0 16px 14px',color:'var(--muted)'}}>⌕</span>
+            <span className="search-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </span>
             <input
               value={q}
               onChange={e=>onQuery(e.target.value)}
               onFocus={()=>{if(sugs.length)setSugOpen(true)}}
               onKeyDown={e=>{
-                if(e.key==='Enter'){
-                  if(sugOpen&&sugs.length&&q.trim().length>=2)choose(sugs[0].name);
-                  else search();
+                if(e.key==='ArrowDown'){
+                  e.preventDefault();
+                  if(sugs.length)setSugIndex(i=>Math.min(i+1,sugs.length-1));
+                }else if(e.key==='ArrowUp'){
+                  e.preventDefault();
+                  if(sugs.length)setSugIndex(i=>Math.max(i-1,-1));
+                }else if(e.key==='Enter'){
+                  if(sugOpen&&sugIndex>=0&&sugs[sugIndex]){
+                    choose(sugs[sugIndex].name);
+                  }else{
+                    search();
+                  }
+                }else if(e.key==='Escape'){
+                  setSugOpen(false);
                 }
-                if(e.key==='Escape')setSugOpen(false);
               }}
               placeholder={t('placeholder')}
               aria-label={t('placeholder')}
             />
-            <button id="searchBtn" onClick={search}>{loading?t('searching'):t('searchBtn')}</button>
+            {q&&<button className="search-clear" onClick={clearQuery} title={t('clearSearch')}>✕</button>}
+            <button id="searchBtn" onClick={search}>
+              {loading?t('searching'):t('searchBtn')}
+            </button>
           </div>
+
           {sugOpen&&sugs.length>0&&<ul className="suglist">
-            {sugs.map(s=><li key={s.packageName}
+            {sugs.map((s,idx)=><li
+              key={s.packageName}
+              className={sugIndex===idx?'active':''}
+              onMouseEnter={()=>setSugIndex(idx)}
               onMouseDown={e=>{e.preventDefault();choose(s.name)}}>
               <img src={isImg(s.icon)?s.icon:''} alt="" loading="lazy" onError={e=>{(e.currentTarget.style.display='none')}}/>
               <span className="sugname">{s.name}</span>
@@ -295,10 +379,12 @@ export default function Home(){
             </li>)}
           </ul>}
         </div>
+
         <div className="chips">
-          <span style={{fontSize:13,color:'var(--muted)',padding:'7px 2px'}}>{t('popular')}</span>
+          <span style={{fontSize:12.5,color:'var(--muted)',fontWeight:600}}>{t('popular')}</span>
           {POPULAR.map(x=><button className="chip" key={x} onClick={()=>choose(x)}>{x}</button>)}
         </div>
+
         {recent.length>0&&!q&&!cat&&<div className="recentrow">
           <span className="recentlabel">🕑 {t('recentTitle')}</span>
           {recent.map(r=><a className="recentchip" key={r.pkg} href={`/app/${encodeURIComponent(r.pkg)}?n=${encodeURIComponent(r.name)}`}>
@@ -306,10 +392,38 @@ export default function Home(){
           </a>)}
         </div>}
       </div>
+
       <div className="benefits">
-        <div className="benefit"><div className="icon">⌕</div><strong>{t('ben1')}</strong><span>{t('ben1d')}</span></div>
-        <div className="benefit"><div className="icon">ϟ</div><strong>{t('ben2')}</strong><span>{t('ben2d')}</span></div>
-        <div className="benefit"><div className="icon">✓</div><strong>{t('ben3')}</strong><span>{t('ben3d')}</span></div>
+        <div className="benefit">
+          <div className="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <strong>{t('ben1')}</strong>
+          <span>{t('ben1d')}</span>
+        </div>
+        <div className="benefit">
+          <div className="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+          </div>
+          <strong>{t('ben2')}</strong>
+          <span>{t('ben2d')}</span>
+        </div>
+        <div className="benefit">
+          <div className="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+          <strong>{t('ben3')}</strong>
+          <span>{t('ben3d')}</span>
+        </div>
       </div>
     </section>
 
@@ -332,29 +446,63 @@ export default function Home(){
     </section>}
 
     <main className="content" id="apps">
+      {/* Filters Sidebar */}
       <aside className="panel filters">
-        <div className="filtertitle">{t('filterSources')}</div>
-        <div className="check">
-          <input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;setChecked(Object.fromEntries(SOURCE_LIST.map(s=>[s,v])))}}/>
-          {t('allSources')} <span style={{marginLeft:'auto'}}>{results.length}</span>
+        <div className="filtersection">
+          <div className="filterhead" onClick={()=>setOpenSources(o=>!o)}>
+            <span>{t('filterSources')}</span>
+            <span className={`chevron ${openSources?'open':''}`}>›</span>
+          </div>
+          {openSources&&<div className="filterbody">
+            <label className="check">
+              <input type="checkbox" checked={allOn} onChange={e=>{const v=e.target.checked;setChecked(Object.fromEntries(SOURCE_LIST.map(s=>[s,v])))}}/>
+              <span>{t('allSources')}</span>
+              <span className="badge-count">{results.length}</span>
+            </label>
+            {SOURCE_LIST.map(s=><label className="check" key={s}>
+              <input type="checkbox" checked={checked[s]!==false} onChange={e=>setChecked(c=>({...c,[s]:e.target.checked}))}/>
+              <span>{s}</span>
+              <span className="badge-count">{counts[s]||0}</span>
+            </label>)}
+          </div>}
         </div>
-        {SOURCE_LIST.map(s=><div className="check" key={s}>
-          <input type="checkbox" checked={checked[s]!==false} onChange={e=>setChecked(c=>({...c,[s]:e.target.checked}))}/>
-          {s} <span style={{marginLeft:'auto'}}>{counts[s]||0}</span>
-        </div>)}
-        <div className="filtergroup">
-          <div className="filtertitle">{t('platform')}</div>
-          <div className="check"><input type="checkbox" defaultChecked readOnly/> {t('android')}</div>
-          <div className="check" style={{opacity:.55}} title="iOS builds are not tracked"><input type="checkbox" disabled/> {t('ios')} <span style={{marginLeft:'auto',fontSize:12}}>n/a</span></div>
+
+        <div className="filtersection filtergroup">
+          <label className="check" style={{fontWeight:650,color:'var(--blue)'}}>
+            <input type="checkbox" checked={directOnly} onChange={e=>setDirectOnly(e.target.checked)}/>
+            <span>⚡ {t('directOnly')}</span>
+          </label>
         </div>
-        <div className="filtergroup">
-          <div className="filtertitle">{t('sortBy')}</div>
-          <div className="check"><input type="radio" name="s" checked={sort==='relevance'} onChange={()=>{setSort('relevance');setVisible(PAGE_SIZE)}}/> {t('relevance')}</div>
-          <div className="check"><input type="radio" name="s" checked={sort==='version'} onChange={()=>{setSort('version');setVisible(PAGE_SIZE)}}/> {t('latestVersion')}</div>
-          <div className="check"><input type="radio" name="s" checked={sort==='name'} onChange={()=>{setSort('name');setVisible(PAGE_SIZE)}}/> {t('nameAZ')}</div>
+
+        <div className="filtersection filtergroup">
+          <div className="filterhead" onClick={()=>setOpenPlatform(o=>!o)}>
+            <span>{t('platform')}</span>
+            <span className={`chevron ${openPlatform?'open':''}`}>›</span>
+          </div>
+          {openPlatform&&<div className="filterbody">
+            <label className="check"><input type="checkbox" defaultChecked readOnly/> <span>{t('android')}</span></label>
+            <label className="check" style={{opacity:.5}} title="iOS builds are not tracked">
+              <input type="checkbox" disabled/>
+              <span>{t('ios')}</span>
+              <span className="badge-count">n/a</span>
+            </label>
+          </div>}
+        </div>
+
+        <div className="filtersection filtergroup">
+          <div className="filterhead" onClick={()=>setOpenSort(o=>!o)}>
+            <span>{t('sortBy')}</span>
+            <span className={`chevron ${openSort?'open':''}`}>›</span>
+          </div>
+          {openSort&&<div className="filterbody">
+            <label className="check"><input type="radio" name="s" checked={sort==='relevance'} onChange={()=>{setSort('relevance');setVisible(PAGE_SIZE)}}/> <span>{t('relevance')}</span></label>
+            <label className="check"><input type="radio" name="s" checked={sort==='version'} onChange={()=>{setSort('version');setVisible(PAGE_SIZE)}}/> <span>{t('latestVersion')}</span></label>
+            <label className="check"><input type="radio" name="s" checked={sort==='name'} onChange={()=>{setSort('name');setVisible(PAGE_SIZE)}}/> <span>{t('nameAZ')}</span></label>
+          </div>}
         </div>
       </aside>
 
+      {/* Results Center Column */}
       <section className="panel results" id="tools">
         <div className="resultshead">
           <strong>{cat?`${t('catTitle')}: ${catLabel}`:`${t('resultsFor')} “${q||'…'}”`}</strong>
@@ -379,7 +527,7 @@ export default function Home(){
             </div>
             <span className="arrow">›</span>
           </div>)
-        ):shown.slice(0,visible).map((a,i)=><div className={`resultcard ${selected===a?'active':''}`} key={`${a.packageName}-${i}`} onClick={()=>setSelected(a)}>
+        ):shown.slice(0,visible).map((a,i)=><div className={`resultcard ${selected===a?'active':''}`} key={`${a.packageName}-${i}`} onClick={()=>pickApp(a)}>
           <div className="appicon">{isImg(a.icon)?<img src={a.icon} alt="" loading="lazy"/>:a.name.slice(0,1).toUpperCase()}</div>
           <div className="resultmeta">
             <strong>{a.name}</strong>
@@ -404,6 +552,7 @@ export default function Home(){
         <div className="notice">{t('notice')}</div>
       </section>
 
+      {/* Detail Right Column */}
       {selected?(
         <AppDetailPanel
           app={selected}
@@ -413,7 +562,7 @@ export default function Home(){
           detailLoading={detailLoading}
         />
       ):(
-        <section className="panel detail">
+        <section className="panel detail" id="detailView">
           <div className="empty">{t('detailEmpty')}</div>
         </section>
       )}
