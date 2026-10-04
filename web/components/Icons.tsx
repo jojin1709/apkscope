@@ -7,6 +7,25 @@ type IconProps = {
   color?: string;
 };
 
+export function IconLogo({ size = 24, className, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={className} style={style}>
+      <circle cx="32" cy="32" r="22" stroke="url(#apkscopeLogoGrad)" strokeWidth="3.5"/>
+      <circle cx="32" cy="32" r="14" stroke="#334155" strokeWidth="2" strokeDasharray="3 3"/>
+      <path d="M26 21L44 32L26 43V21Z" fill="url(#apkscopeLogoGrad)"/>
+      <circle cx="32" cy="32" r="3.5" fill="#ffffff"/>
+      <defs>
+        <linearGradient id="apkscopeLogoGrad" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#60a5fa"/>
+          <stop offset="0.6" stopColor="#38bdf8"/>
+          <stop offset="1" stopColor="#34d399"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+
 export function IconFlame({ size = 16, className, style, color = 'currentColor' }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>

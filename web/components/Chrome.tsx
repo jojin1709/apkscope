@@ -1,7 +1,7 @@
 'use client';
 import {useState,useEffect} from 'react';
 import {useUI} from './Providers';
-import {IconSun,IconMoon,IconShield,IconWrench} from './Icons';
+import {IconSun,IconMoon,IconShield,IconWrench,IconLogo} from './Icons';
 
 export function TopBar(){
   const {t,theme,toggleTheme,lang,setLang}=useUI();
@@ -39,23 +39,15 @@ export function TopBar(){
   return <>
     <header className="nav">
       <a href="/#apps" className="logo" onClick={e=>{e.preventDefault();switchNav('apps')}}>
-        <div className="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M4 4.5C4 3.67 4.9 3.17 5.6 3.6L19.4 11.1C20.1 11.5 20.1 12.5 19.4 12.9L5.6 20.4C4.9 20.8 4 20.3 4 19.5V4.5Z" fill="url(#storeGrad)"/>
-            <defs>
-              <linearGradient id="storeGrad" x1="4" y1="3" x2="20" y2="21" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#3b82f6"/>
-                <stop offset="0.5" stopColor="#06b6d4"/>
-                <stop offset="1" stopColor="#10b981"/>
-              </linearGradient>
-            </defs>
-          </svg>
+        <div className="logo-icon" style={{display:'grid',placeItems:'center'}}>
+          <IconLogo size={22}/>
         </div>
         <div className="logo-text">
           APK<span>Scope</span>
         </div>
         <span className="logo-badge">Store</span>
       </a>
+
 
       <nav className="navlinks">
         <button
